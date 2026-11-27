@@ -1,0 +1,2829 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doremus — Controle de Contraprova</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SheetJS (suporte adicional caso a planilha seja importada como .xlsx/.csv) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            doremus: {
+              navy: '#00305E',
+              navyHover: '#002244',
+              light: '#F0F5FA',
+              red: '#E30613',
+              redHover: '#C20410'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+
+    .slot-card {
+      transition: all 0.15s ease;
+    }
+    .slot-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px -4px rgba(0, 48, 94, 0.18);
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body class="bg-[#F6F8FB] text-slate-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Avisos rápidos no canto da tela -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ===================================================================== -->
+  <!-- CABEÇALHO LIMPO COM FUNDO CLARO E LOGO TRANSPARENTE                   -->
+  <!-- ===================================================================== -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+
+      <!-- Logo Doremus com Fundo 100% Transparente -->
+      <div class="flex items-center gap-4">
+        <a href="https://postimg.cc/7bXdy0xK" target="_blank" rel="noopener noreferrer" class="bg-transparent flex items-center shrink-0" title="Doremus">
+          <img
+            src="https://i.postimg.cc/7bXdy0xK/as-02.png"
+            border="0"
+            alt="Doremus"
+            class="h-10 sm:h-11 w-auto object-contain bg-transparent mix-blend-multiply"
+            onerror="this.style.display='none'; document.getElementById('fallbackLogoSvg').classList.remove('hidden');"
+          />
+          <!-- Fallback vetorial transparente caso a imagem externa falhe -->
+          <svg id="fallbackLogoSvg" class="hidden h-10 sm:h-11 w-auto" viewBox="0 0 260 95" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="130" y="46" text-anchor="middle" fill="#00305E" font-family="Inter, sans-serif" font-weight="800" font-size="44" letter-spacing="-1">Doremus</text>
+            <path d="M68 56 H172 C164 81 138 90 116 90 C92 90 75 76 68 56 Z" fill="#00305E"/>
+            <path d="M102 89 C138 95 173 82 184 56 H195 C183 86 146 98 102 89 Z" fill="#E30613"/>
+          </svg>
+        </a>
+        <div class="hidden sm:block h-7 w-px bg-slate-200"></div>
+        <div class="hidden sm:block">
+          <h1 class="text-sm font-bold text-doremus-navy leading-tight">Controle de Contraprova</h1>
+          <p class="text-xs text-slate-500">Endereçamento e Descarte</p>
+        </div>
+      </div>
+
+      <!-- Menu Principal Simples e Direto -->
+      <nav class="flex items-center gap-1.5 overflow-x-auto w-full lg:w-auto py-1 lg:py-0">
+        <button onclick="switchTab('recebimento')" id="tab-recebimento" class="nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition whitespace-nowrap">
+          <i data-lucide="scan-barcode" class="w-4 h-4"></i>
+          <span>Nova Entrada</span>
+        </button>
+
+        <button onclick="switchTab('busca')" id="tab-busca" class="nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition whitespace-nowrap">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span>Consultar & Retiradas</span>
+          <span id="badgeRetiradasTab" class="hidden px-1.5 py-0.5 text-[11px] font-bold rounded-full bg-purple-600 text-white">0</span>
+        </button>
+
+        <button onclick="switchTab('mapa')" id="tab-mapa" class="nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition whitespace-nowrap">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i>
+          <span>Mapa de Prateleiras</span>
+        </button>
+
+        <button onclick="switchTab('validade')" id="tab-validade" class="nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition whitespace-nowrap">
+          <i data-lucide="calendar" class="w-4 h-4"></i>
+          <span>Validades</span>
+        </button>
+
+        <button onclick="switchTab('descarte')" id="tab-descarte" class="nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition whitespace-nowrap">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          <span>Descarte</span>
+          <span id="badgeDescarteTab" class="hidden px-1.5 py-0.5 text-[11px] font-bold rounded-full bg-doremus-red text-white">0</span>
+        </button>
+
+        <button onclick="switchTab('config')" id="tab-config" class="nav-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition whitespace-nowrap" title="Planilha Google e Quantidade de Prateleiras">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Planilha & Prateleiras</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Alerta Limpo de Descarte (Só aparece quando houver itens +90 dias) -->
+  <div id="globalDiscardAlert" class="hidden bg-doremus-red text-white px-4 py-2.5">
+    <div class="max-w-6xl mx-auto flex items-center justify-between gap-3 text-xs sm:text-sm">
+      <div class="flex items-center gap-2">
+        <i data-lucide="bell" class="w-4 h-4 shrink-0"></i>
+        <span>Você tem <strong id="alertDiscardCount">0 amostras</strong> que já cumpriram os 90 dias de retenção e podem ser descartadas.</span>
+      </div>
+      <button onclick="switchTab('descarte')" class="px-3 py-1 rounded-lg bg-white text-doremus-red font-bold text-xs hover:bg-red-50 shrink-0">
+        Ver Lista
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- CONTEÚDO PRINCIPAL                                                    -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 4 Indicadores Simples com as Cores da Marca + Regra Amarela -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div onclick="switchTab('mapa'); setMapFilter('VAZIO')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200 hover:border-slate-300 transition flex items-center justify-between">
+        <div>
+          <span class="text-xs font-medium text-slate-500">Posições Vazias</span>
+          <p id="kpiVazio" class="text-2xl font-extrabold text-slate-700 font-mono mt-0.5">0</p>
+        </div>
+        <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+          <i data-lucide="check-square" class="w-5 h-5"></i>
+        </span>
+      </div>
+
+      <div onclick="switchTab('mapa'); setMapFilter('ATIVO')" class="cursor-pointer bg-white rounded-2xl p-4 border border-doremus-navy/20 hover:border-doremus-navy/50 transition flex items-center justify-between">
+        <div>
+          <span class="text-xs font-semibold text-doremus-navy">Ativos (No Prazo)</span>
+          <p id="kpiAtivo" class="text-2xl font-extrabold text-doremus-navy font-mono mt-0.5">0</p>
+        </div>
+        <span class="w-9 h-9 rounded-xl bg-doremus-light text-doremus-navy flex items-center justify-center">
+          <i data-lucide="package-check" class="w-5 h-5"></i>
+        </span>
+      </div>
+
+      <div onclick="switchTab('mapa'); setMapFilter('VENCIDO')" class="cursor-pointer bg-amber-50/80 rounded-2xl p-4 border border-amber-300 hover:border-amber-400 transition flex items-center justify-between">
+        <div>
+          <span class="text-xs font-semibold text-amber-900">Vencidos (Retenção)</span>
+          <p id="kpiVencidoRetencao" class="text-2xl font-extrabold text-amber-700 font-mono mt-0.5">0</p>
+        </div>
+        <span class="w-9 h-9 rounded-xl bg-amber-200/80 text-amber-800 flex items-center justify-center">
+          <i data-lucide="clock" class="w-5 h-5"></i>
+        </span>
+      </div>
+
+      <div onclick="switchTab('descarte')" class="cursor-pointer bg-red-50/70 rounded-2xl p-4 border border-red-200 hover:border-doremus-red transition flex items-center justify-between">
+        <div>
+          <span class="text-xs font-semibold text-doremus-red">Liberados (+90 dias)</span>
+          <p id="kpiLiberadoDescarte" class="text-2xl font-extrabold text-doremus-red font-mono mt-0.5">0</p>
+        </div>
+        <span class="w-9 h-9 rounded-xl bg-red-100 text-doremus-red flex items-center justify-center">
+          <i data-lucide="trash-2" class="w-5 h-5"></i>
+        </span>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TELA 1: BIPAR ENTRADA (PRÁTICA E DIRETA)                            -->
+    <!-- =================================================================== -->
+    <section id="view-recebimento" class="tab-view hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Formulário Enxuto Conectado à Planilha -->
+        <form id="intakeForm" onsubmit="handleConfirmStorage(event)" class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <h2 class="text-base sm:text-lg font-bold text-doremus-navy">1. Identificar Produto</h2>
+            <button onclick="loadSpreadsheetCatalog(true)" type="button" id="sheetSyncBadge" class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold flex items-center gap-1.5 hover:bg-slate-200 transition" title="Clique para atualizar os produtos da planilha">
+              <span id="sheetSyncDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              <span id="sheetSyncText">Conectando à planilha...</span>
+            </button>
+          </div>
+
+          <div class="relative">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Código do Produto</label>
+            <div class="relative">
+              <i data-lucide="search" class="w-4 h-4 text-doremus-navy absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+              <input id="inBarcode" oninput="handleBarcodeLookup()" onfocus="handleBarcodeLookup()" autocomplete="off" type="text" required placeholder="Digite o código do produto..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-doremus-navy/30 focus:border-doremus-navy bg-doremus-light/30 font-mono text-sm focus:outline-none" />
+            </div>
+            <!-- Lista limpa de sugestões ao digitar -->
+            <div id="codeSuggestionsBox" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-lg max-h-52 overflow-y-auto divide-y divide-slate-100"></div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Descrição do Produto</label>
+              <input id="inProductName" oninput="handleManualDescriptionSectorHint()" type="text" required placeholder="Preenchido automaticamente..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/70 text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:border-doremus-navy" />
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Linha / Setor Automático</label>
+              <div class="px-3.5 py-2.5 rounded-xl border border-doremus-navy/20 bg-doremus-light/50 flex flex-wrap items-center justify-between gap-2">
+                <span id="autoDetectedLineDisplay" class="text-xs sm:text-sm font-semibold text-slate-600">Aguardando código do produto...</span>
+                <span id="autoDetectedSectorPill" class="px-2.5 py-0.5 rounded-lg bg-doremus-navy text-white text-xs font-bold hidden">—</span>
+              </div>
+              <input id="inProductLine" type="hidden" value="" />
+            </div>
+
+            <div class="relative">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Lote</label>
+              <input id="inBatch" oninput="handleBatchLookup()" onfocus="handleBatchLookup()" autocomplete="off" type="text" required placeholder="Digite o lote..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-sm uppercase focus:outline-none focus:border-doremus-navy" />
+              <!-- Sugestões automáticas de Lote + Validade -->
+              <div id="batchSuggestionsBox" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 sm:col-span-1">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Fabricação</label>
+                <input id="inProdDate" onchange="updateAutoAddressPreview()" type="date" required class="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-doremus-navy" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Validade</label>
+                <input id="inExpDate" onchange="updateAutoAddressPreview()" type="date" required class="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-doremus-navy" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Triagem Simples em Botões -->
+          <div class="pt-1">
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Situação na Entrada</label>
+            <div class="grid grid-cols-2 gap-2.5">
+              <button type="button" onclick="setTriageMode('APTO')" id="btnTriageApto" class="py-2.5 px-3 rounded-xl border-2 border-doremus-navy bg-doremus-light text-doremus-navy text-xs font-bold flex items-center justify-center gap-1.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4"></i> Dentro do Prazo
+              </button>
+              <button type="button" onclick="setTriageMode('BLOQUEIO')" id="btnTriageBloqueio" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-slate-50">
+                <i data-lucide="shield-alert" class="w-4 h-4"></i> Bloqueio / Análise
+              </button>
+            </div>
+            <input type="hidden" id="inTriageStatus" value="APTO" />
+          </div>
+        </form>
+
+        <!-- Cartão Claro de Endereço Sugerido + Botão Principal -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border-2 border-doremus-navy p-6 shadow-sm space-y-5">
+          <div class="text-center space-y-1">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">2. Guarde neste Endereço</span>
+            <p id="autoAddressFloorSector" class="text-sm font-semibold text-doremus-navy">Digite o código para endereçar</p>
+            <div id="autoAddressBox" class="my-3 py-5 px-4 rounded-2xl bg-doremus-light border border-doremus-navy/15">
+              <div id="autoAddressCode" class="text-4xl sm:text-5xl font-extrabold font-mono text-doremus-navy">—</div>
+              <p id="autoAddressColumnInfo" class="text-xs text-slate-600 mt-1.5">O setor e a posição são escolhidos automaticamente</p>
+            </div>
+          </div>
+
+          <details id="manualSlotOverrideWrap" class="text-xs bg-slate-50 rounded-xl border border-slate-200 px-3.5 py-2.5">
+            <summary class="font-semibold text-slate-600 cursor-pointer select-none">Precisa trocar a posição manualmente?</summary>
+            <div class="mt-3 space-y-2.5">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Setor</label>
+                <select id="inSectorId" onchange="handleManualSectorOverride()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-doremus-navy focus:outline-none focus:border-doremus-navy"></select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Prateleira específica</label>
+                <select id="inManualSlotSelect" onchange="handleManualSlotChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white font-mono text-xs text-slate-700 focus:outline-none focus:border-doremus-navy"></select>
+              </div>
+            </div>
+          </details>
+
+          <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 flex items-center justify-between text-xs">
+            <span class="text-slate-500">Descarte liberado somente após (+90d):</span>
+            <strong id="previewDiscardDate" class="font-mono text-doremus-navy text-sm">—</strong>
+          </div>
+
+          <button type="submit" form="intakeForm" class="w-full py-3.5 px-5 rounded-xl bg-doremus-navy hover:bg-doremus-navyHover text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition">
+            <i data-lucide="check" class="w-5 h-5"></i>
+            <span>Confirmar Guarda na Prateleira</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TELA 2: CONSULTAR PRODUTO / LOTES & RETIRADAS PARA ANÁLISE          -->
+    <!-- =================================================================== -->
+    <section id="view-busca" class="tab-view hidden space-y-5">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-doremus-navy">Onde está o Produto? (Endereços e Lotes Disponíveis)</h2>
+            <p class="text-xs text-slate-500">Pesquise pelo código (ex: 4857), nome do produto ou lote para ver todas as prateleiras e controlar retiradas.</p>
+          </div>
+        </div>
+
+        <div class="relative">
+          <i data-lucide="search" class="w-5 h-5 text-doremus-navy absolute left-4 top-1/2 -translate-y-1/2"></i>
+          <input
+            id="productQueryInput"
+            oninput="renderSearchAndCheckoutsView()"
+            type="text"
+            placeholder="Digite o código do produto (ex: 4857), descrição ou número do lote..."
+            class="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-doremus-navy/30 focus:border-doremus-navy bg-doremus-light/20 text-sm font-medium focus:outline-none"
+          />
+        </div>
+
+        <div id="productSearchResultsContainer" class="space-y-3"></div>
+      </div>
+
+      <!-- Painel de Contraprovas Retiradas (Fora da Prateleira para Cobrar Devolução) -->
+      <div class="bg-white rounded-2xl border-2 border-purple-200 overflow-hidden">
+        <div class="bg-purple-50/80 px-5 py-4 border-b border-purple-200 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-purple-950 flex items-center gap-2">
+              <i data-lucide="user-check" class="w-5 h-5 text-purple-700"></i>
+              Amostras Retiradas / Fora da Prateleira (<span id="checkedOutCountHeader">0</span>)
+            </h3>
+            <p class="text-xs text-purple-800/80">Controle de quem retirou para análise, data e horário exato para solicitar devolução.</p>
+          </div>
+        </div>
+        <div id="checkedOutListContainer" class="divide-y divide-slate-100"></div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TELA 3: MAPA DE PRATELEIRAS (ESTANTES COM LISTAS SUSPENSAS)         -->
+    <!-- =================================================================== -->
+    <section id="view-mapa" class="tab-view space-y-4">
+
+      <!-- Barra Única de Controles do Mapa -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <!-- Seletor de Área Física -->
+        <div class="inline-flex flex-wrap bg-slate-100 p-1 rounded-xl self-start gap-1">
+          <button onclick="setFloor('CENTRO')" id="btnFloorCentro" class="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition bg-doremus-navy text-white">
+            Principais Centro (<span id="countCentroBadge">2435</span>)
+          </button>
+          <button onclick="setFloor('CANTO_ESQ')" id="btnFloorCantoEsq" class="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900">
+            Canto Esquerdo (<span id="countCantoEsqBadge">95</span>)
+          </button>
+          <button onclick="setFloor('CANTO_DIR')" id="btnFloorCantoDir" class="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900">
+            Canto Direito (<span id="countCantoDirBadge">90</span>)
+          </button>
+        </div>
+
+        <!-- Filtros rápidos e busca no mapa -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="setMapFilter('ALL')" id="flt-ALL" class="map-flt px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 ring-2 ring-doremus-navy">Todos</button>
+          <button type="button" onclick="setMapFilter('VAZIO')" id="flt-VAZIO" class="map-flt px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50">Livres</button>
+          <button type="button" onclick="setMapFilter('ATIVO')" id="flt-ATIVO" class="map-flt px-3 py-1.5 rounded-xl border border-doremus-navy/30 bg-doremus-light/50 text-xs font-semibold text-doremus-navy">Ativos</button>
+          <button type="button" onclick="setMapFilter('VENCIDO')" id="flt-VENCIDO" class="map-flt px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-100 text-xs font-semibold text-amber-950">Vencidos</button>
+          <button type="button" onclick="setMapFilter('LIBERADO')" id="flt-LIBERADO" class="map-flt px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-doremus-red">Descartar</button>
+          <button type="button" onclick="setMapFilter('RETIRADO')" id="flt-RETIRADO" class="map-flt px-3 py-1.5 rounded-xl border border-purple-300 bg-purple-100 text-xs font-semibold text-purple-900">Retirados</button>
+          <button type="button" onclick="openBlockedModal()" class="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Bloqueio (<span id="plantaBloqueioCount">0</span>)
+          </button>
+          <input id="mapSearchInput" oninput="renderFloorMap()" type="text" placeholder="Filtrar código/lote..." class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-doremus-navy" />
+        </div>
+      </div>
+
+      <!-- Grade de estantes e prateleiras -->
+      <div id="sectorsMapContainer" class="space-y-4"></div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TELA 4: JUNÇÃO DE VALIDADES                                         -->
+    <!-- =================================================================== -->
+    <section id="view-validade" class="tab-view hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-doremus-navy">Amostras Agrupadas por Validade</h2>
+          <p class="text-xs text-slate-500">Facilita encontrar lotes que vencem na mesma data ou mês.</p>
+        </div>
+        <select id="groupModeSelect" onchange="renderValidityView()" class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium bg-white focus:outline-none focus:border-doremus-navy">
+          <option value="DATE">Agrupar por Data de Validade</option>
+          <option value="MONTH">Agrupar por Mês/Ano</option>
+          <option value="SECTOR">Agrupar por Setor</option>
+        </select>
+      </div>
+
+      <div id="validityGroupsContainer" class="space-y-4"></div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TELA 5: DESCARTE UNIFICADO (+90 DIAS)                               -->
+    <!-- =================================================================== -->
+    <section id="view-descarte" class="tab-view hidden space-y-5">
+
+      <!-- Liberados para Descarte Hoje -->
+      <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-doremus-red flex items-center gap-2">
+              <i data-lucide="check-circle" class="w-5 h-5"></i>
+              Prontos para Descarte (Validade + 90 dias concluídos)
+            </h2>
+            <p class="text-xs text-slate-500">Ao confirmar, o endereço na prateleira volta imediatamente a ficar Vazio.</p>
+          </div>
+          <button onclick="openBatchDiscardModal()" id="btnBatchDiscard" class="px-4 py-2.5 rounded-xl bg-doremus-red hover:bg-doremus-redHover disabled:opacity-40 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <span>Descartar Selecionados (<span id="selectedDiscardCount">0</span>)</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs">
+                <th class="py-3 px-4 w-10">
+                  <input type="checkbox" id="selectAllDiscardCheckbox" onchange="toggleSelectAllDiscard(this.checked)" class="rounded cursor-pointer" />
+                </th>
+                <th class="py-3 px-4">Endereço</th>
+                <th class="py-3 px-4">Produto / Lote</th>
+                <th class="py-3 px-4">Venceu em</th>
+                <th class="py-3 px-4">Completou 90d</th>
+                <th class="py-3 px-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="readyDiscardTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Em Quarentena Obrigatória (Bloqueados) -->
+      <div class="bg-white rounded-2xl border border-amber-300 overflow-hidden">
+        <div class="bg-amber-50 px-5 py-3.5 border-b border-amber-200">
+          <h3 class="text-sm font-bold text-amber-950 flex items-center gap-2">
+            <i data-lucide="lock" class="w-4 h-4 text-amber-700"></i>
+            Aguardando Prazo de 90 Dias (Descarte Bloqueado)
+          </h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 text-slate-500 text-xs">
+                <th class="py-2.5 px-4">Endereço</th>
+                <th class="py-2.5 px-4">Produto / Lote</th>
+                <th class="py-2.5 px-4">Venceu em</th>
+                <th class="py-2.5 px-4">Libera em</th>
+                <th class="py-2.5 px-4 text-right">Faltam</th>
+              </tr>
+            </thead>
+            <tbody id="lockedRetentionTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TELA 6: PRATELEIRAS & GOOGLE PLANILHAS                              -->
+    <!-- =================================================================== -->
+    <section id="view-config" class="tab-view hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Ajuste Fácil da Quantidade de Prateleiras -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h2 class="text-base font-bold text-doremus-navy">Quantidade de Prateleiras e Endereços</h2>
+              <p class="text-xs text-slate-500">Configuração atual com 13 fileiras centrais + Cantos Esquerdo e Direito.</p>
+            </div>
+            <button onclick="printShelfLabels()" type="button" class="px-3 py-2 rounded-xl bg-doremus-light text-doremus-navy hover:bg-slate-200 text-xs font-bold flex items-center gap-1.5">
+              <i data-lucide="printer" class="w-4 h-4"></i> Etiquetas
+            </button>
+          </div>
+
+          <div id="shelfConfigList" class="space-y-2.5"></div>
+
+          <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <button onclick="addNewSectorRow()" type="button" class="px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              + Novo Setor
+            </button>
+            <button onclick="applyShelfConfiguration()" type="button" class="px-4 py-2 rounded-xl bg-doremus-navy hover:bg-doremus-navyHover text-white text-xs font-bold">
+              Salvar Quantidade de Prateleiras
+            </button>
+          </div>
+
+          <!-- Vínculo Automático das Linhas da Planilha com os Setores -->
+          <div id="lineMappingPanel" class="hidden pt-4 border-t border-slate-200 space-y-2.5">
+            <div>
+              <h3 class="text-sm font-bold text-doremus-navy">Vínculo Automático: Linha → Prateleira</h3>
+              <p class="text-xs text-slate-500">Linhas identificadas na planilha e para qual setor cada uma envia automaticamente:</p>
+            </div>
+            <div id="lineMappingList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+
+        <!-- Conexão Direta Google Planilhas -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4">
+          <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-bold text-doremus-navy">Planilha de Produtos Conectada</h2>
+              <p class="text-xs text-slate-500">Preenche produto, linha, setor, lote e validade automaticamente.</p>
+            </div>
+            <a id="openConnectedSheetLink" href="https://docs.google.com/spreadsheets/d/1YWHLGvQdj4EX6ML_FMk0wGG-zHKD5AjZ6dgDCqaf1zM/edit?usp=sharing" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-doremus-light text-doremus-navy text-xs font-bold flex items-center gap-1 shrink-0">
+              Abrir Planilha <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            </a>
+          </div>
+
+          <div id="configCatalogStatusBox" class="p-3 rounded-xl bg-doremus-light border border-doremus-navy/15 text-xs text-doremus-navy font-medium">
+            Verificando conexão com a planilha...
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">ID da Planilha Google</label>
+            <input id="cfgSheetId" type="text" value="1YWHLGvQdj4EX6ML_FMk0wGG-zHKD5AjZ6dgDCqaf1zM" onchange="updateSheetLinkHref()" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs bg-slate-50" />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">Aba de Ordens</label>
+              <input id="cfgTabOrdens" type="text" value="03-01 - Relacao Das Ordens de" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono text-[11px]" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">Aba Listagem do Browse</label>
+              <input id="cfgTabBrowse" type="text" value="03-01 - Listagem do Browse" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono text-[11px]" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="loadSpreadsheetCatalog(true)" type="button" class="py-2.5 px-3 rounded-xl bg-doremus-navy hover:bg-doremus-navyHover text-white text-xs font-bold flex items-center justify-center gap-1.5">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Recarregar Produtos
+            </button>
+            <label class="py-2.5 px-3 rounded-xl border border-doremus-navy text-doremus-navy hover:bg-doremus-light text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer text-center">
+              <i data-lucide="upload" class="w-3.5 h-3.5"></i> Ler Arquivo .xlsx
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="handleLocalExcelUpload(event)" class="hidden" />
+            </label>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 space-y-2">
+            <label class="block text-xs font-semibold text-slate-600">Gravar Estoque na Planilha (Apps Script opcional)</label>
+            <div class="flex gap-2">
+              <input id="cfgWebhookUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs" />
+              <button onclick="pushAllToGoogleSheet()" type="button" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold shrink-0">
+                Salvar
+              </button>
+            </div>
+          </div>
+
+          <details class="text-xs bg-slate-50 rounded-xl p-3 border border-slate-200">
+            <summary class="font-semibold text-slate-700 cursor-pointer">Código Apps Script (colar em Código.gs)</summary>
+            <p class="text-slate-500 mt-2 mb-2">Abra a planilha → <strong>Extensões → Apps Script</strong>, apague tudo que estiver no arquivo <strong>Código.gs</strong>, cole este código, clique em <strong>Salvar</strong> e depois em <strong>Implantar → Nova implantação → Tipo: App da Web</strong>:</p>
+            <textarea id="appsScriptCodeArea" readonly rows="8" class="w-full p-2 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[11px]"></textarea>
+            <button onclick="copyAppsScriptCode()" type="button" class="mt-2 px-3 py-1.5 rounded-lg bg-doremus-navy text-white font-semibold">Copiar Código</button>
+          </details>
+
+          <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <button onclick="exportFullCsv()" type="button" class="text-doremus-navy font-semibold hover:underline">Baixar Estoque CSV</button>
+            <button onclick="clearDemoSamples()" type="button" class="text-doremus-red font-semibold hover:underline">Limpar Dados de Exemplo</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL SIMPLES: DETALHE DA POSIÇÃO                                     -->
+  <!-- ===================================================================== -->
+  <div id="slotModal" class="fixed inset-0 z-40 bg-slate-900/50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <span id="slotModalFloor" class="text-xs font-medium text-slate-500">Principais Centro</span>
+          <h3 id="slotModalCode" class="text-xl font-extrabold font-mono text-doremus-navy">FL 0001</h3>
+        </div>
+        <button onclick="closeSlotModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="slotModalBody" class="p-5 space-y-4 text-sm max-h-[75vh] overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: ITENS EM BLOQUEIO -->
+  <div id="blockedModal" class="fixed inset-0 z-40 bg-slate-900/50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="text-base font-bold text-doremus-navy">Amostras em Bloqueio / Análise</h3>
+        <button onclick="closeBlockedModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="blockedModalBody" class="p-5 max-h-[65vh] overflow-y-auto space-y-3 text-xs sm:text-sm"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMAR DESCARTE -->
+  <div id="confirmDiscardModal" class="fixed inset-0 z-40 bg-slate-900/50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full border border-slate-200 shadow-xl p-5 space-y-4">
+      <h3 class="text-base font-bold text-doremus-navy">Confirmar Descarte</h3>
+      <p id="confirmDiscardSummary" class="text-xs sm:text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200"></p>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeConfirmDiscardModal()" type="button" class="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600">Cancelar</button>
+        <button onclick="executeConfirmedDiscard()" type="button" class="px-4 py-2 rounded-xl bg-doremus-red hover:bg-doremus-redHover text-white text-xs font-bold">Confirmar e Liberar Vaga</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REGISTRAR RETIRADA DE CONTRAPROVA PARA ANÁLISE -->
+  <div id="checkoutSampleModal" class="fixed inset-0 z-50 bg-slate-900/50 hidden items-center justify-center p-4">
+    <form onsubmit="confirmCheckoutSample(event)" class="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-purple-50/70">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-purple-700">Retirada Temporária</span>
+          <h3 id="checkoutModalTitle" class="text-base font-extrabold text-doremus-navy">Retirar Contraprova da Prateleira</h3>
+        </div>
+        <button type="button" onclick="closeCheckoutModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-3.5 text-xs sm:text-sm">
+        <input type="hidden" id="checkoutSampleId" />
+        <div id="checkoutSampleInfoBox" class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700"></div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Nome de quem retirou *</label>
+          <input id="checkoutPersonName" type="text" required placeholder="Ex: Ana Paula (Qualidade)" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-purple-600" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Motivo / Setor</label>
+          <input id="checkoutReason" type="text" placeholder="Ex: Análise sensorial / Comparação de lote" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-purple-600" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Data da Retirada *</label>
+            <input id="checkoutDate" type="date" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-purple-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Horário *</label>
+            <input id="checkoutTime" type="time" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-purple-600" />
+          </div>
+        </div>
+
+        <p class="text-[11px] text-purple-800 bg-purple-50 p-2.5 rounded-xl border border-purple-200">
+          O endereço continuará reservado para esta amostra, mas ficará sinalizado como <strong>Fora da Prateleira (Retido)</strong> até a devolução.
+        </p>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeCheckoutModal()" class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600">Cancelar</button>
+          <button type="submit" class="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold flex items-center gap-1.5">
+            <i data-lucide="user-check" class="w-4 h-4"></i> Confirmar Retirada
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Área de Impressão de Etiquetas -->
+  <div id="printArea" class="hidden p-4"></div>
+
+  <!-- ===================================================================== -->
+  <!-- LÓGICA COMPLETA DO SISTEMA                                            -->
+  <!-- ===================================================================== -->
+  <script>
+    const RETENTION_DAYS = 90;
+    const STORAGE_KEY = 'doremus_contraprova_v5';
+    const DEFAULT_SHEET_ID = '1YWHLGvQdj4EX6ML_FMk0wGG-zHKD5AjZ6dgDCqaf1zM';
+    const DEFAULT_TAB_ORDENS = '03-01 - Relacao Das Ordens de';
+    const DEFAULT_TAB_BROWSE = '03-01 - Listagem do Browse';
+
+    // Estrutura física confirmada:
+    // - Principais Centro: 12 fileiras x 40 estantes x 5 prateleiras (2400) + Fileira 13 x 7 estantes x 5 prateleiras (35) = 2435
+    // - Canto Esquerdo: 19 estantes x 5 prateleiras = 95
+    // - Canto Direito: 18 estantes x 5 prateleiras = 90
+    const DEFAULT_SECTORS = [
+      { id: 'FL', name: 'Principais Centro (Fileiras 1 a 12)', prefix: 'FL', area: 'CENTRO', rows: 12, racksPerRow: 40, shelvesPerRack: 5 },
+      { id: 'F13', name: 'Principais Centro (Fileira 13)', prefix: 'F13', area: 'CENTRO', rows: 1, racksPerRow: 7, shelvesPerRack: 5 },
+      { id: 'CE', name: 'Canto Esquerdo', prefix: 'CE', area: 'CANTO_ESQ', rows: 1, racksPerRow: 19, shelvesPerRack: 5 },
+      { id: 'CD', name: 'Canto Direito', prefix: 'CD', area: 'CANTO_DIR', rows: 1, racksPerRow: 18, shelvesPerRack: 5 }
+    ];
+
+    let state = {
+      sectors: [],
+      samples: [],
+      blockedSamples: [],
+      discardHistory: [],
+      lineSectorMap: {},
+      config: {
+        sheetId: DEFAULT_SHEET_ID,
+        tabOrdens: DEFAULT_TAB_ORDENS,
+        tabBrowse: DEFAULT_TAB_BROWSE,
+        webhookUrl: ''
+      }
+    };
+
+    // Catálogo carregado da planilha Google (ou Excel local)
+    let catalog = {
+      loaded: false,
+      source: 'none',
+      productsByCode: new Map(), // code -> { code, description, lineCode, lineName, batches: [{ batch, expDate, prodDate }] }
+      browseLines: new Map(),    // lineCode -> lineName
+      allLines: new Map()        // lineKey -> label
+    };
+
+    // Estado da interface
+    let ui = {
+      currentTab: 'recebimento',
+      currentFloor: 'CENTRO',
+      currentMapFilter: 'ALL',
+      selectedGroupByFloor: { CENTRO: '', CANTO_ESQ: '', CANTO_DIR: '' },
+      selectedRackByGroup: {},
+      manualSlotOverride: null,
+      selectedDiscardIds: new Set(),
+      pendingDiscardIds: []
+    };
+
+    let cachedSlots = [];
+    let cachedSlotsByCode = new Map();
+
+    // =========================================================================
+    // UTILITÁRIOS DE DATA, TEXTO E SEGURANÇA
+    // =========================================================================
+    function getTodayISO() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    function getCurrentTimeHHMM() {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function addDaysISO(isoDate, days) {
+      if (!isoDate) return '';
+      const parts = isoDate.split('-').map(Number);
+      if (parts.length !== 3 || parts.some(isNaN)) return '';
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      d.setDate(d.getDate() + days);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function diffDaysISO(fromISO, toISO) {
+      if (!fromISO || !toISO) return 0;
+      const a = fromISO.split('-').map(Number);
+      const b = toISO.split('-').map(Number);
+      const d1 = Date.UTC(a[0], a[1] - 1, a[2]);
+      const d2 = Date.UTC(b[0], b[1] - 1, b[2]);
+      return Math.round((d2 - d1) / 86400000);
+    }
+
+    function formatDateBR(isoDate) {
+      if (!isoDate) return '—';
+      const p = String(isoDate).split('-');
+      if (p.length !== 3) return isoDate;
+      return `${p[2]}/${p[1]}/${p[0]}`;
+    }
+
+    function normalizeDateToISO(val) {
+      if (!val) return '';
+      if (val instanceof Date && !isNaN(val.getTime())) {
+        return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, '0')}-${String(val.getDate()).padStart(2, '0')}`;
+      }
+      const s = String(val).trim();
+      if (!s) return '';
+      // Formato Google gviz: Date(2026,4,15)
+      const gvizMatch = s.match(/^Date\((\d{4}),\s*(\d{1,2}),\s*(\d{1,2})/i);
+      if (gvizMatch) {
+        const y = Number(gvizMatch[1]);
+        const m = Number(gvizMatch[2]) + 1;
+        const d = Number(gvizMatch[3]);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      // Formato ISO YYYY-MM-DD
+      const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (isoMatch) {
+        return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, '0')}-${String(isoMatch[3]).padStart(2, '0')}`;
+      }
+      // Formato BR DD/MM/AAAA
+      const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (brMatch) {
+        let y = brMatch[3];
+        if (y.length === 2) y = '20' + y;
+        return `${y}-${String(brMatch[2]).padStart(2, '0')}-${String(brMatch[1]).padStart(2, '0')}`;
+      }
+      // Número serial do Excel
+      if (/^\d{5}(\.\d+)?$/.test(s)) {
+        const serial = Math.floor(Number(s));
+        const utcDays = serial - 25569;
+        const d = new Date(utcDays * 86400 * 1000);
+        if (!isNaN(d.getTime())) {
+          return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        }
+      }
+      return '';
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const styles = {
+        success: 'bg-emerald-700 text-white border-emerald-800',
+        error: 'bg-doremus-red text-white border-red-800',
+        warning: 'bg-amber-500 text-slate-950 border-amber-600',
+        info: 'bg-doremus-navy text-white border-slate-900'
+      };
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-lg text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 transition-all ${styles[type] || styles.info}`;
+      toast.innerHTML = `<span>${escapeHtml(message)}</span><button type="button" class="opacity-80 hover:opacity-100 font-bold" onclick="this.parentElement.remove()">✕</button>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) toast.remove();
+      }, 4200);
+    }
+
+    function getAreaLabel(areaKey) {
+      if (areaKey === 'CENTRO') return 'Principais Centro';
+      if (areaKey === 'CANTO_ESQ') return 'Canto Esquerdo';
+      if (areaKey === 'CANTO_DIR') return 'Canto Direito';
+      return areaKey || 'Estoque';
+    }
+
+    // =========================================================================
+    // PERSISTÊNCIA E GERAÇÃO DOS ENDEREÇOS FÍSICOS
+    // =========================================================================
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state.sectors = Array.isArray(parsed.sectors) && parsed.sectors.length ? parsed.sectors : JSON.parse(JSON.stringify(DEFAULT_SECTORS));
+          state.samples = Array.isArray(parsed.samples) ? parsed.samples : [];
+          state.blockedSamples = Array.isArray(parsed.blockedSamples) ? parsed.blockedSamples : [];
+          state.discardHistory = Array.isArray(parsed.discardHistory) ? parsed.discardHistory : [];
+          state.lineSectorMap = parsed.lineSectorMap && typeof parsed.lineSectorMap === 'object' ? parsed.lineSectorMap : {};
+          state.config = Object.assign({
+            sheetId: DEFAULT_SHEET_ID,
+            tabOrdens: DEFAULT_TAB_ORDENS,
+            tabBrowse: DEFAULT_TAB_BROWSE,
+            webhookUrl: ''
+          }, parsed.config || {});
+        } else {
+          state.sectors = JSON.parse(JSON.stringify(DEFAULT_SECTORS));
+          seedDemoSamples();
+        }
+      } catch (e) {
+        state.sectors = JSON.parse(JSON.stringify(DEFAULT_SECTORS));
+        seedDemoSamples();
+      }
+      rebuildSlotsIndex();
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('Falha ao salvar no localStorage:', e);
+      }
+    }
+
+    function seedDemoSamples() {
+      const today = getTodayISO();
+      state.samples = [
+        {
+          id: 'smp-demo-1',
+          addressCode: 'FL-F01-E01-P1',
+          sectorId: 'FL',
+          barcode: '4857',
+          productName: 'Aroma Natural de Carne Grelhada',
+          lineLabel: 'Salgados / Aromas',
+          batch: 'L260815A',
+          prodDate: addDaysISO(today, -30),
+          expDate: addDaysISO(today, 150),
+          createdAt: new Date().toISOString(),
+          checkout: null
+        },
+        {
+          id: 'smp-demo-2',
+          addressCode: 'FL-F01-E01-P1',
+          sectorId: 'FL',
+          barcode: '4857',
+          productName: 'Aroma Natural de Carne Grelhada',
+          lineLabel: 'Salgados / Aromas',
+          batch: 'L260902B',
+          prodDate: addDaysISO(today, -12),
+          expDate: addDaysISO(today, 168),
+          createdAt: new Date().toISOString(),
+          checkout: {
+            person: 'Mariana (Qualidade)',
+            reason: 'Análise sensorial comparativa',
+            date: today,
+            time: '09:15'
+          }
+        },
+        {
+          id: 'smp-demo-3',
+          addressCode: 'CE-E01-P2',
+          sectorId: 'CE',
+          barcode: '3210',
+          productName: 'Mix Condimento Calabresa Especial',
+          lineLabel: 'Canto Esquerdo',
+          batch: 'L260410C',
+          prodDate: addDaysISO(today, -190),
+          expDate: addDaysISO(today, -25),
+          createdAt: new Date().toISOString(),
+          checkout: null
+        },
+        {
+          id: 'smp-demo-4',
+          addressCode: 'CD-E01-P1',
+          sectorId: 'CD',
+          barcode: '1984',
+          productName: 'Nutrimix Estabilizante Emulsão',
+          lineLabel: 'Canto Direito',
+          batch: 'L251120D',
+          prodDate: addDaysISO(today, -320),
+          expDate: addDaysISO(today, -105),
+          createdAt: new Date().toISOString(),
+          checkout: null
+        }
+      ];
+      state.blockedSamples = [
+        {
+          id: 'blk-demo-1',
+          barcode: '5102',
+          productName: 'Condimento Bacon Defumado Premium',
+          lineLabel: 'Salgados',
+          batch: 'L261118X',
+          prodDate: addDaysISO(today, -5),
+          expDate: addDaysISO(today, 175),
+          createdAt: new Date().toISOString()
+        }
+      ];
+    }
+
+    function rebuildSlotsIndex() {
+      const slots = [];
+      const byCode = new Map();
+
+      state.sectors.forEach(sec => {
+        const rows = Math.max(1, parseInt(sec.rows, 10) || 1);
+        const racks = Math.max(1, parseInt(sec.racksPerRow, 10) || 1);
+        const shelves = Math.max(1, parseInt(sec.shelvesPerRack, 10) || 5);
+        const prefix = (sec.prefix || sec.id || 'PR').toUpperCase().trim();
+
+        for (let r = 1; r <= rows; r++) {
+          const groupKey = `${sec.id}-F${r}`;
+          const groupLabel = rows > 1
+            ? `Fileira ${r} (${racks} estantes × ${shelves} prat.)`
+            : `${sec.name} (${racks} estantes × ${shelves} prat.)`;
+
+          for (let e = 1; e <= racks; e++) {
+            const rackLabel = `Estante ${String(e).padStart(2, '0')}`;
+            for (let p = 1; p <= shelves; p++) {
+              const code = rows > 1
+                ? `${prefix}-F${String(r).padStart(2, '0')}-E${String(e).padStart(2, '0')}-P${p}`
+                : `${prefix}-E${String(e).padStart(2, '0')}-P${p}`;
+
+              const columnLabel = rows > 1
+                ? `Fileira ${r} • ${rackLabel} • Prat. ${p}`
+                : `${sec.name} • ${rackLabel} • Prat. ${p}`;
+
+              const slot = {
+                code,
+                sectorId: sec.id,
+                sectorName: sec.name,
+                area: sec.area || 'CENTRO',
+                rowNumber: r,
+                rackNumber: e,
+                shelfLevel: p,
+                groupKey,
+                groupLabel,
+                rackLabel,
+                columnLabel
+              };
+              slots.push(slot);
+              byCode.set(code, slot);
+            }
+          }
+        }
+      });
+
+      cachedSlots = slots;
+      cachedSlotsByCode = byCode;
+    }
+
+    function getSamplesByAddressMap() {
+      const map = new Map();
+      state.samples.forEach(s => {
+        if (!map.has(s.addressCode)) map.set(s.addressCode, []);
+        map.get(s.addressCode).push(s);
+      });
+      return map;
+    }
+
+    function getOccupiedCodesSet() {
+      const set = new Set();
+      state.samples.forEach(s => set.add(s.addressCode));
+      return set;
+    }
+
+    // =========================================================================
+    // REGRAS DE NEGÓCIO: VALIDADE E RETENÇÃO DE 90 DIAS
+    // =========================================================================
+    function evaluateSampleLifecycle(sample) {
+      const today = getTodayISO();
+      const expDate = sample.expDate || today;
+      const discardLimitDate = addDaysISO(expDate, RETENTION_DAYS);
+
+      if (today < expDate) {
+        const daysToExpire = diffDaysISO(today, expDate);
+        return {
+          code: 'ATIVO',
+          label: 'Ativo (No Prazo)',
+          discardLimitDate,
+          daysToExpire,
+          daysRemainingRetention: RETENTION_DAYS
+        };
+      }
+
+      if (today >= discardLimitDate) {
+        return {
+          code: 'LIBERADO',
+          label: 'Liberado p/ Descarte (+90d)',
+          discardLimitDate,
+          daysToExpire: diffDaysISO(today, expDate),
+          daysRemainingRetention: 0
+        };
+      }
+
+      const daysRemainingRetention = Math.max(1, diffDaysISO(today, discardLimitDate));
+      return {
+        code: 'VENCIDO',
+        label: 'Vencido (Retenção 90d)',
+        discardLimitDate,
+        daysToExpire: diffDaysISO(today, expDate),
+        daysRemainingRetention
+      };
+    }
+
+    function evaluateShelfSummaryStatus(samplesInShelf) {
+      if (!samplesInShelf || samplesInShelf.length === 0) {
+        return { code: 'VAZIO', hasCheckout: false };
+      }
+      let hasLiberado = false;
+      let hasVencido = false;
+      let hasCheckout = false;
+      samplesInShelf.forEach(s => {
+        const life = evaluateSampleLifecycle(s);
+        if (life.code === 'LIBERADO') hasLiberado = true;
+        else if (life.code === 'VENCIDO') hasVencido = true;
+        if (s.checkout) hasCheckout = true;
+      });
+      if (hasLiberado) return { code: 'LIBERADO', hasCheckout };
+      if (hasVencido) return { code: 'VENCIDO', hasCheckout };
+      return { code: 'ATIVO', hasCheckout };
+    }
+
+    // =========================================================================
+    // NAVEGAÇÃO ENTRE ABAS E ATUALIZAÇÃO GERAL
+    // =========================================================================
+    function switchTab(tabId) {
+      ui.currentTab = tabId;
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+      const target = document.getElementById(`view-${tabId}`);
+      if (target) target.classList.remove('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('bg-doremus-navy', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+      });
+      const activeBtn = document.getElementById(`tab-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-doremus-navy', 'text-white', 'shadow-sm');
+        activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+      }
+
+      if (tabId === 'mapa') renderFloorMap();
+      else if (tabId === 'busca') renderSearchAndCheckoutsView();
+      else if (tabId === 'validade') renderValidityView();
+      else if (tabId === 'descarte') renderDiscardView();
+      else if (tabId === 'config') renderConfigView();
+      else if (tabId === 'recebimento') updateAutoAddressPreview();
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function refreshAllViews() {
+      let countAtivo = 0;
+      let countVencido = 0;
+      let countLiberado = 0;
+      let countRetirados = 0;
+
+      state.samples.forEach(smp => {
+        const life = evaluateSampleLifecycle(smp);
+        if (life.code === 'ATIVO') countAtivo++;
+        else if (life.code === 'VENCIDO') countVencido++;
+        else if (life.code === 'LIBERADO') countLiberado++;
+        if (smp.checkout) countRetirados++;
+      });
+
+      const occupiedShelvesCount = getOccupiedCodesSet().size;
+      const countVazio = Math.max(0, cachedSlots.length - occupiedShelvesCount);
+
+      const setTxt = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+
+      setTxt('kpiVazio', countVazio);
+      setTxt('kpiAtivo', countAtivo);
+      setTxt('kpiVencidoRetencao', countVencido);
+      setTxt('kpiLiberadoDescarte', countLiberado);
+      setTxt('plantaBloqueioCount', state.blockedSamples.length);
+
+      // Contadores das 3 áreas físicas
+      const countCentro = cachedSlots.filter(s => s.area === 'CENTRO').length;
+      const countEsq = cachedSlots.filter(s => s.area === 'CANTO_ESQ').length;
+      const countDir = cachedSlots.filter(s => s.area === 'CANTO_DIR').length;
+      setTxt('countCentroBadge', countCentro);
+      setTxt('countCantoEsqBadge', countEsq);
+      setTxt('countCantoDirBadge', countDir);
+
+      // Badges no menu
+      const badgeDesc = document.getElementById('badgeDescarteTab');
+      if (badgeDesc) {
+        badgeDesc.textContent = countLiberado;
+        badgeDesc.classList.toggle('hidden', countLiberado === 0);
+      }
+      const badgeRet = document.getElementById('badgeRetiradasTab');
+      if (badgeRet) {
+        badgeRet.textContent = countRetirados;
+        badgeRet.classList.toggle('hidden', countRetirados === 0);
+      }
+
+      // Alerta global de descarte +90d
+      const globalAlert = document.getElementById('globalDiscardAlert');
+      if (globalAlert) {
+        globalAlert.classList.toggle('hidden', countLiberado === 0);
+        setTxt('alertDiscardCount', `${countLiberado} ${countLiberado === 1 ? 'amostra' : 'amostras'}`);
+      }
+
+      populateSectorOverrideSelect();
+
+      if (ui.currentTab === 'mapa') renderFloorMap();
+      if (ui.currentTab === 'busca') renderSearchAndCheckoutsView();
+      if (ui.currentTab === 'validade') renderValidityView();
+      if (ui.currentTab === 'descarte') renderDiscardView();
+      if (ui.currentTab === 'config') renderConfigView();
+      if (ui.currentTab === 'recebimento') updateAutoAddressPreview();
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // =========================================================================
+    // INTEGRAÇÃO COM GOOGLE PLANILHAS (LEITURA DIRETA + EXCEL LOCAL)
+    // =========================================================================
+    function setSheetSyncStatus(status, text) {
+      const dot = document.getElementById('sheetSyncDot');
+      const txt = document.getElementById('sheetSyncText');
+      const cfgBox = document.getElementById('configCatalogStatusBox');
+
+      if (txt) txt.textContent = text;
+      if (dot) {
+        dot.className = 'w-2 h-2 rounded-full ' + (
+          status === 'ok' ? 'bg-emerald-500' :
+          status === 'loading' ? 'bg-amber-400 animate-pulse' :
+          'bg-red-500'
+        );
+      }
+      if (cfgBox) cfgBox.textContent = text;
+    }
+
+    function updateSheetLinkHref() {
+      const idEl = document.getElementById('cfgSheetId');
+      const linkEl = document.getElementById('openConnectedSheetLink');
+      if (idEl) {
+        state.config.sheetId = idEl.value.trim() || DEFAULT_SHEET_ID;
+        saveState();
+      }
+      if (linkEl) {
+        linkEl.href = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(state.config.sheetId)}/edit?usp=sharing`;
+      }
+    }
+
+    async function fetchGoogleSheetTab(sheetId, sheetName) {
+      const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start === -1 || end === -1) throw new Error('Planilha sem acesso público de leitura');
+      const json = JSON.parse(text.slice(start, end + 1));
+      if (json.status === 'error') throw new Error('Aba não encontrada ou permissão negada');
+      return json.table;
+    }
+
+    function gvizTableToMatrix(table) {
+      if (!table || !Array.isArray(table.rows)) return [];
+      return table.rows.map(row => {
+        const cells = Array.isArray(row.c) ? row.c : [];
+        return cells.map(cell => {
+          if (!cell) return '';
+          if (cell.f !== undefined && cell.f !== null && String(cell.f).trim() !== '') return String(cell.f).trim();
+          if (cell.v !== undefined && cell.v !== null) return String(cell.v).trim();
+          return '';
+        });
+      });
+    }
+
+    function processCatalogMatrices(ordensMatrix, browseMatrix, sourceLabel) {
+      catalog.productsByCode = new Map();
+      catalog.browseLines = new Map();
+      catalog.allLines = new Map();
+
+      // 1) Processa 03-01 - Listagem do Browse (mapeia código da linha -> descrição da linha)
+      (browseMatrix || []).forEach(row => {
+        const cleaned = row.map(c => String(c ?? '').trim());
+        const nonEmpty = cleaned.filter(Boolean);
+        if (nonEmpty.length >= 2) {
+          const code = nonEmpty[0].toUpperCase();
+          const name = nonEmpty[1];
+          if (code && name && !/^c[oó]d/i.test(code)) {
+            catalog.browseLines.set(code, name);
+          }
+        }
+      });
+
+      // 2) Processa 03-01 - Relacao Das Ordens de
+      // Coluna B (idx 1) = Lote | Coluna C (idx 2) = Código | Coluna E (idx 4) = Descrição | Coluna H (idx 7) = Linha | Coluna J (idx 9) = Validade
+      (ordensMatrix || []).forEach(row => {
+        const batch = String(row[1] ?? '').trim();
+        const code = String(row[2] ?? '').trim();
+        const desc = String(row[4] ?? '').trim();
+        const lineRaw = String(row[7] ?? '').trim();
+        const expRaw = row[9] ?? '';
+        const prodRaw = row[6] ?? row[0] ?? '';
+
+        if (!code || /^c[oó]d|produto|item/i.test(code)) return;
+
+        const lineCode = lineRaw.toUpperCase();
+        const lineName = catalog.browseLines.get(lineCode) || lineRaw || 'Geral';
+        const lineDisplay = lineCode && lineName && lineName.toUpperCase() !== lineCode
+          ? `${lineCode} - ${lineName}`
+          : (lineName || lineCode || 'Geral');
+
+        if (lineCode || lineName) {
+          const lineKey = lineCode || lineName.toUpperCase();
+          catalog.allLines.set(lineKey, lineDisplay);
+        }
+
+        if (!catalog.productsByCode.has(code)) {
+          catalog.productsByCode.set(code, {
+            code,
+            description: desc || `Produto ${code}`,
+            lineCode: lineCode || 'GERAL',
+            lineName: lineDisplay,
+            batches: []
+          });
+        }
+
+        const prod = catalog.productsByCode.get(code);
+        if (desc && (!prod.description || prod.description.startsWith('Produto '))) {
+          prod.description = desc;
+        }
+        if (lineCode && prod.lineCode === 'GERAL') {
+          prod.lineCode = lineCode;
+          prod.lineName = lineDisplay;
+        }
+
+        if (batch) {
+          const expISO = normalizeDateToISO(expRaw);
+          const prodISO = normalizeDateToISO(prodRaw);
+          const already = prod.batches.find(b => b.batch.toUpperCase() === batch.toUpperCase());
+          if (!already) {
+            prod.batches.push({ batch, expDate: expISO, prodDate: prodISO });
+          } else if (!already.expDate && expISO) {
+            already.expDate = expISO;
+          }
+        }
+      });
+
+      catalog.loaded = catalog.productsByCode.size > 0;
+      catalog.source = sourceLabel;
+
+      if (catalog.loaded) {
+        setSheetSyncStatus('ok', `Planilha conectada (${catalog.productsByCode.size} produtos)`);
+      } else {
+        setSheetSyncStatus('error', 'Planilha sem itens lidos — verifique permissão ou importe .xlsx');
+      }
+
+      renderLineMappingPanel();
+    }
+
+    async function loadSpreadsheetCatalog(showFeedback = false) {
+      const idEl = document.getElementById('cfgSheetId');
+      const ordEl = document.getElementById('cfgTabOrdens');
+      const brwEl = document.getElementById('cfgTabBrowse');
+
+      if (idEl && idEl.value.trim()) state.config.sheetId = idEl.value.trim();
+      if (ordEl && ordEl.value.trim()) state.config.tabOrdens = ordEl.value.trim();
+      if (brwEl && brwEl.value.trim()) state.config.tabBrowse = brwEl.value.trim();
+      saveState();
+
+      setSheetSyncStatus('loading', 'Lendo planilha Google...');
+
+      // Se estiver rodando implantado dentro do Google Apps Script, lê direto da planilha ativa (sem erro de permissão)
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            processCatalogMatrices(res.ordens || [], res.browse || [], 'apps-script');
+            if (showFeedback) {
+              showToast(`Catálogo atualizado: ${catalog.productsByCode.size} produtos carregados.`, 'success');
+            }
+          })
+          .withFailureHandler(function (err) {
+            console.warn('Erro Apps Script:', err);
+            setSheetSyncStatus('error', 'Erro ao ler abas no Apps Script — confira os nomes das abas');
+            if (showFeedback) showToast('Erro ao ler abas da planilha.', 'error');
+          })
+          .getCatalogData(state.config.tabOrdens, state.config.tabBrowse);
+        return;
+      }
+
+      try {
+        const [ordTable, brwTable] = await Promise.all([
+          fetchGoogleSheetTab(state.config.sheetId, state.config.tabOrdens),
+          fetchGoogleSheetTab(state.config.sheetId, state.config.tabBrowse).catch(() => null)
+        ]);
+        const ordMatrix = gvizTableToMatrix(ordTable);
+        const brwMatrix = brwTable ? gvizTableToMatrix(brwTable) : [];
+        processCatalogMatrices(ordMatrix, brwMatrix, 'google');
+        if (showFeedback) {
+          showToast(`Catálogo atualizado: ${catalog.productsByCode.size} produtos carregados.`, 'success');
+        }
+      } catch (err) {
+        console.warn('Leitura direta Google Sheets indisponível:', err);
+        setSheetSyncStatus('error', 'Planilha restrita — deixe como "Qualquer pessoa com link vê" ou use Ler Arquivo .xlsx');
+        if (showFeedback) {
+          showToast('Não foi possível ler direto do Google. Libere a leitura por link ou importe o .xlsx.', 'warning');
+        }
+      }
+    }
+
+    function handleLocalExcelUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (typeof XLSX === 'undefined') {
+        showToast('Biblioteca de leitura Excel indisponível.', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const ordName = wb.SheetNames.find(n => n.toLowerCase().includes('relacao') || n.toLowerCase().includes('ordens')) || wb.SheetNames[0];
+          const brwName = wb.SheetNames.find(n => n.toLowerCase().includes('browse') || n.toLowerCase().includes('listagem'));
+
+          const ordMatrix = XLSX.utils.sheet_to_json(wb.Sheets[ordName], { header: 1, raw: false, defval: '' });
+          const brwMatrix = brwName ? XLSX.utils.sheet_to_json(wb.Sheets[brwName], { header: 1, raw: false, defval: '' }) : [];
+          processCatalogMatrices(ordMatrix, brwMatrix, 'excel');
+          showToast(`Arquivo "${file.name}" carregado (${catalog.productsByCode.size} produtos)!`, 'success');
+        } catch (err) {
+          showToast('Erro ao ler o arquivo Excel/CSV.', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      event.target.value = '';
+    }
+
+    // =========================================================================
+    // DETECÇÃO AUTOMÁTICA DE SETOR PELA LINHA (COLUNA H)
+    // =========================================================================
+    function inferSectorIdFromLine(lineCode, lineName, productName) {
+      const key = String(lineCode || '').trim().toUpperCase();
+      if (key && state.lineSectorMap[key] && state.sectors.some(s => s.id === state.lineSectorMap[key])) {
+        return state.lineSectorMap[key];
+      }
+
+      const combined = `${lineCode || ''} ${lineName || ''} ${productName || ''}`.toLowerCase();
+      if (combined.includes('nutri') || combined.includes('doce') || combined.includes('direit')) {
+        if (state.sectors.some(s => s.id === 'CD')) return 'CD';
+      }
+      if (combined.includes('shelf') || combined.includes('esquerd') || combined.includes('especial')) {
+        if (state.sectors.some(s => s.id === 'CE')) return 'CE';
+      }
+      if (combined.includes('13')) {
+        if (state.sectors.some(s => s.id === 'F13')) return 'F13';
+      }
+      return state.sectors[0] ? state.sectors[0].id : 'FL';
+    }
+
+    function getSuggestedSlotForSector(sectorId) {
+      const sectorSlots = cachedSlots.filter(s => s.sectorId === sectorId);
+      if (!sectorSlots.length) return cachedSlots[0] || null;
+      const byAddress = getSamplesByAddressMap();
+      // Prioriza primeira prateleira vazia; se todas tiverem itens, sugere a com menos itens (já que cabem vários produtos)
+      const empty = sectorSlots.find(s => !(byAddress.get(s.code) || []).length);
+      if (empty) return empty;
+
+      let best = sectorSlots[0];
+      let minCount = (byAddress.get(best.code) || []).length;
+      for (const s of sectorSlots) {
+        const c = (byAddress.get(s.code) || []).length;
+        if (c < minCount) {
+          minCount = c;
+          best = s;
+        }
+      }
+      return best;
+    }
+
+    // =========================================================================
+    // TELA 1: NOVA ENTRADA (BIPAGEM, LOTE AUTOMÁTICO E ENDEREÇAMENTO)
+    // =========================================================================
+    function handleBarcodeLookup() {
+      const input = document.getElementById('inBarcode');
+      const box = document.getElementById('codeSuggestionsBox');
+      if (!input || !box) return;
+
+      const q = input.value.trim();
+      if (!q) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+        return;
+      }
+
+      const exact = catalog.productsByCode.get(q);
+      if (exact) {
+        applyCatalogProductToForm(exact);
+      }
+
+      const matches = [];
+      const qLow = q.toLowerCase();
+      catalog.productsByCode.forEach(prod => {
+        if (matches.length >= 8) return;
+        if (prod.code.toLowerCase().includes(qLow) || prod.description.toLowerCase().includes(qLow)) {
+          matches.push(prod);
+        }
+      });
+
+      if (matches.length > 0 && !(exact && matches.length === 1)) {
+        box.innerHTML = matches.map(p => `
+          <button type="button" onmousedown="selectSuggestedProduct('${escapeHtml(p.code)}')" class="w-full text-left px-3.5 py-2 hover:bg-doremus-light flex items-center justify-between gap-2 text-xs">
+            <div>
+              <span class="font-mono font-bold text-doremus-navy">${escapeHtml(p.code)}</span>
+              <span class="text-slate-700 ml-2">${escapeHtml(p.description)}</span>
+            </div>
+            <span class="text-[11px] font-semibold text-slate-500 shrink-0">${escapeHtml(p.lineName)}</span>
+          </button>
+        `).join('');
+        box.classList.remove('hidden');
+      } else {
+        box.classList.add('hidden');
+      }
+    }
+
+    function selectSuggestedProduct(code) {
+      const prod = catalog.productsByCode.get(code);
+      const input = document.getElementById('inBarcode');
+      const box = document.getElementById('codeSuggestionsBox');
+      if (input) input.value = code;
+      if (box) box.classList.add('hidden');
+      if (prod) applyCatalogProductToForm(prod);
+    }
+
+    function applyCatalogProductToForm(prod) {
+      const nameEl = document.getElementById('inProductName');
+      const lineEl = document.getElementById('inProductLine');
+      const lineDisp = document.getElementById('autoDetectedLineDisplay');
+      const sectorPill = document.getElementById('autoDetectedSectorPill');
+      const sectorSel = document.getElementById('inSectorId');
+
+      if (nameEl) nameEl.value = prod.description;
+      if (lineEl) lineEl.value = prod.lineName;
+
+      const sectorId = inferSectorIdFromLine(prod.lineCode, prod.lineName, prod.description);
+      const sec = state.sectors.find(s => s.id === sectorId) || state.sectors[0];
+
+      if (lineDisp) lineDisp.textContent = prod.lineName || 'Linha padrão';
+      if (sectorPill && sec) {
+        sectorPill.textContent = sec.name;
+        sectorPill.classList.remove('hidden');
+      }
+      if (sectorSel && sec) sectorSel.value = sec.id;
+
+      ui.manualSlotOverride = null;
+      updateAutoAddressPreview();
+      handleBatchLookup();
+    }
+
+    function handleManualDescriptionSectorHint() {
+      const desc = (document.getElementById('inProductName')?.value || '').trim();
+      const lineEl = document.getElementById('inProductLine');
+      if (!desc || (lineEl && lineEl.value)) return;
+      const sectorId = inferSectorIdFromLine('', '', desc);
+      const sec = state.sectors.find(s => s.id === sectorId);
+      const sectorSel = document.getElementById('inSectorId');
+      const sectorPill = document.getElementById('autoDetectedSectorPill');
+      if (sectorSel && sec) sectorSel.value = sec.id;
+      if (sectorPill && sec) {
+        sectorPill.textContent = sec.name;
+        sectorPill.classList.remove('hidden');
+      }
+      updateAutoAddressPreview();
+    }
+
+    function handleBatchLookup() {
+      const code = (document.getElementById('inBarcode')?.value || '').trim();
+      const batchInput = document.getElementById('inBatch');
+      const box = document.getElementById('batchSuggestionsBox');
+      if (!batchInput || !box) return;
+
+      const prod = catalog.productsByCode.get(code);
+      if (!prod || !prod.batches.length) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      const q = batchInput.value.trim().toUpperCase();
+      const exact = prod.batches.find(b => b.batch.toUpperCase() === q);
+      if (exact) {
+        if (exact.expDate) document.getElementById('inExpDate').value = exact.expDate;
+        if (exact.prodDate) document.getElementById('inProdDate').value = exact.prodDate;
+        updateAutoAddressPreview();
+      }
+
+      const filtered = prod.batches.filter(b => !q || b.batch.toUpperCase().includes(q)).slice(0, 8);
+      if (filtered.length > 0 && !(exact && filtered.length === 1)) {
+        box.innerHTML = filtered.map(b => `
+          <button type="button" onmousedown="selectSuggestedBatch('${escapeHtml(b.batch)}','${escapeHtml(b.expDate || '')}','${escapeHtml(b.prodDate || '')}')" class="w-full text-left px-3.5 py-2 hover:bg-doremus-light flex items-center justify-between gap-2 text-xs">
+            <span class="font-mono font-bold text-doremus-navy">${escapeHtml(b.batch)}</span>
+            <span class="text-[11px] text-slate-500">Val: <strong class="font-mono text-slate-700">${b.expDate ? formatDateBR(b.expDate) : '—'}</strong></span>
+          </button>
+        `).join('');
+        box.classList.remove('hidden');
+      } else {
+        box.classList.add('hidden');
+      }
+    }
+
+    function selectSuggestedBatch(batch, expDate, prodDate) {
+      const batchInput = document.getElementById('inBatch');
+      const expEl = document.getElementById('inExpDate');
+      const prodEl = document.getElementById('inProdDate');
+      const box = document.getElementById('batchSuggestionsBox');
+
+      if (batchInput) batchInput.value = batch;
+      if (expDate && expEl) expEl.value = expDate;
+      if (prodDate && prodEl) prodEl.value = prodDate;
+      if (box) box.classList.add('hidden');
+      updateAutoAddressPreview();
+    }
+
+    function setTriageMode(mode) {
+      const hidden = document.getElementById('inTriageStatus');
+      const btnApto = document.getElementById('btnTriageApto');
+      const btnBloq = document.getElementById('btnTriageBloqueio');
+      if (hidden) hidden.value = mode;
+
+      if (mode === 'APTO') {
+        btnApto.className = 'py-2.5 px-3 rounded-xl border-2 border-doremus-navy bg-doremus-light text-doremus-navy text-xs font-bold flex items-center justify-center gap-1.5';
+        btnBloq.className = 'py-2.5 px-3 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-slate-50';
+      } else {
+        btnBloq.className = 'py-2.5 px-3 rounded-xl border-2 border-amber-500 bg-amber-50 text-amber-900 text-xs font-bold flex items-center justify-center gap-1.5';
+        btnApto.className = 'py-2.5 px-3 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-slate-50';
+      }
+      updateAutoAddressPreview();
+    }
+
+    function populateSectorOverrideSelect() {
+      const sel = document.getElementById('inSectorId');
+      if (!sel) return;
+      const prev = sel.value;
+      sel.innerHTML = state.sectors.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+      if (prev && state.sectors.some(s => s.id === prev)) sel.value = prev;
+    }
+
+    function populateManualSlotSelect(sectorId, selectedCode) {
+      const sel = document.getElementById('inManualSlotSelect');
+      if (!sel) return;
+      const byAddress = getSamplesByAddressMap();
+      const list = cachedSlots.filter(s => s.sectorId === sectorId).slice(0, 250);
+      sel.innerHTML = list.map(s => {
+        const qtd = (byAddress.get(s.code) || []).length;
+        const suffix = qtd > 0 ? ` — ${qtd} prod.` : ' — livre';
+        return `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} (${escapeHtml(s.columnLabel)})${suffix}</option>`;
+      }).join('');
+      if (selectedCode && !list.some(s => s.code === selectedCode)) {
+        const chosen = cachedSlotsByCode.get(selectedCode);
+        if (chosen) {
+          const opt = document.createElement('option');
+          opt.value = chosen.code;
+          opt.textContent = `${chosen.code} (${chosen.columnLabel})`;
+          sel.insertBefore(opt, sel.firstChild);
+        }
+      }
+      if (selectedCode) sel.value = selectedCode;
+    }
+
+    function handleManualSectorOverride() {
+      ui.manualSlotOverride = null;
+      updateAutoAddressPreview();
+    }
+
+    function handleManualSlotChange() {
+      const sel = document.getElementById('inManualSlotSelect');
+      if (sel && sel.value) {
+        ui.manualSlotOverride = sel.value;
+        updateAutoAddressPreview();
+      }
+    }
+
+    function updateAutoAddressPreview() {
+      const triage = document.getElementById('inTriageStatus')?.value || 'APTO';
+      const expDate = document.getElementById('inExpDate')?.value || '';
+      const floorEl = document.getElementById('autoAddressFloorSector');
+      const codeEl = document.getElementById('autoAddressCode');
+      const infoEl = document.getElementById('autoAddressColumnInfo');
+      const discEl = document.getElementById('previewDiscardDate');
+
+      if (discEl) {
+        discEl.textContent = expDate ? formatDateBR(addDaysISO(expDate, RETENTION_DAYS)) : '—';
+      }
+
+      if (triage === 'BLOQUEIO') {
+        if (floorEl) floorEl.textContent = 'Área de Retenção da Qualidade';
+        if (codeEl) codeEl.textContent = 'BLOQUEIO';
+        if (infoEl) infoEl.textContent = 'Amostra ficará retida para análise antes de ir para prateleira';
+        return;
+      }
+
+      const sectorId = document.getElementById('inSectorId')?.value || (state.sectors[0] && state.sectors[0].id);
+      const chosen = (ui.manualSlotOverride && cachedSlotsByCode.get(ui.manualSlotOverride))
+        || getSuggestedSlotForSector(sectorId);
+
+      if (!chosen) {
+        if (floorEl) floorEl.textContent = 'Nenhuma prateleira cadastrada';
+        if (codeEl) codeEl.textContent = '—';
+        if (infoEl) infoEl.textContent = 'Cadastre setores em Planilha & Prateleiras';
+        return;
+      }
+
+      const existingCount = (getSamplesByAddressMap().get(chosen.code) || []).length;
+      if (floorEl) floorEl.textContent = `${getAreaLabel(chosen.area)} • ${chosen.sectorName}`;
+      if (codeEl) codeEl.textContent = chosen.code;
+      if (infoEl) {
+        infoEl.textContent = existingCount > 0
+          ? `${chosen.columnLabel} (${existingCount} ${existingCount === 1 ? 'produto já guardado' : 'produtos já guardados'} nesta prateleira)`
+          : `${chosen.columnLabel} • Prateleira livre`;
+      }
+
+      populateManualSlotSelect(chosen.sectorId, chosen.code);
+    }
+
+    function resetIntakeForm() {
+      const form = document.getElementById('intakeForm');
+      if (form) form.reset();
+      const today = getTodayISO();
+      const prodEl = document.getElementById('inProdDate');
+      const expEl = document.getElementById('inExpDate');
+      if (prodEl) prodEl.value = today;
+      if (expEl) expEl.value = addDaysISO(today, 180);
+      const lineEl = document.getElementById('inProductLine');
+      if (lineEl) lineEl.value = '';
+      const lineDisp = document.getElementById('autoDetectedLineDisplay');
+      if (lineDisp) lineDisp.textContent = 'Aguardando código do produto...';
+      const pill = document.getElementById('autoDetectedSectorPill');
+      if (pill) pill.classList.add('hidden');
+      ui.manualSlotOverride = null;
+      setTriageMode('APTO');
+    }
+
+    function handleConfirmStorage(event) {
+      event.preventDefault();
+      const barcode = (document.getElementById('inBarcode')?.value || '').trim();
+      const productName = (document.getElementById('inProductName')?.value || '').trim();
+      const lineLabel = (document.getElementById('inProductLine')?.value || '').trim() || 'Padrão';
+      const batch = (document.getElementById('inBatch')?.value || '').trim().toUpperCase();
+      const prodDate = document.getElementById('inProdDate')?.value || getTodayISO();
+      const expDate = document.getElementById('inExpDate')?.value || '';
+      const triage = document.getElementById('inTriageStatus')?.value || 'APTO';
+
+      if (!barcode || !productName || !batch || !expDate) {
+        showToast('Preencha código, produto, lote e validade.', 'warning');
+        return;
+      }
+
+      if (triage === 'BLOQUEIO') {
+        state.blockedSamples.unshift({
+          id: 'blk-' + Date.now(),
+          barcode,
+          productName,
+          lineLabel,
+          batch,
+          prodDate,
+          expDate,
+          createdAt: new Date().toISOString()
+        });
+        saveState();
+        refreshAllViews();
+        showToast(`Produto ${barcode} (Lote ${batch}) enviado para Bloqueio / Análise.`, 'warning');
+        resetIntakeForm();
+        return;
+      }
+
+      const sectorId = document.getElementById('inSectorId')?.value || (state.sectors[0] && state.sectors[0].id);
+      const chosen = (ui.manualSlotOverride && cachedSlotsByCode.get(ui.manualSlotOverride))
+        || getSuggestedSlotForSector(sectorId);
+
+      if (!chosen) {
+        showToast('Nenhuma prateleira disponível.', 'error');
+        return;
+      }
+
+      state.samples.unshift({
+        id: 'smp-' + Date.now(),
+        addressCode: chosen.code,
+        sectorId: chosen.sectorId,
+        barcode,
+        productName,
+        lineLabel,
+        batch,
+        prodDate,
+        expDate,
+        createdAt: new Date().toISOString(),
+        checkout: null
+      });
+
+      saveState();
+      refreshAllViews();
+      showToast(`Guardado em ${chosen.code} (${chosen.columnLabel})!`, 'success');
+      resetIntakeForm();
+      document.getElementById('inBarcode')?.focus();
+    }
+
+    // =========================================================================
+    // TELA 2: CONSULTAR PRODUTO / LOTES & RETIRADAS PARA ANÁLISE
+    // =========================================================================
+    function renderSearchAndCheckoutsView() {
+      const q = (document.getElementById('productQueryInput')?.value || '').trim().toLowerCase();
+      const resBox = document.getElementById('productSearchResultsContainer');
+      const outBox = document.getElementById('checkedOutListContainer');
+      const outCount = document.getElementById('checkedOutCountHeader');
+
+      if (resBox) {
+        const filtered = state.samples.filter(s => {
+          if (!q) return true;
+          return (
+            s.barcode.toLowerCase().includes(q) ||
+            s.productName.toLowerCase().includes(q) ||
+            s.batch.toLowerCase().includes(q) ||
+            s.addressCode.toLowerCase().includes(q)
+          );
+        });
+
+        if (filtered.length === 0) {
+          resBox.innerHTML = `<div class="p-6 text-center text-xs sm:text-sm text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">Nenhuma amostra encontrada para esta busca.</div>`;
+        } else {
+          resBox.innerHTML = filtered.slice(0, 60).map(s => {
+            const life = evaluateSampleLifecycle(s);
+            const slot = cachedSlotsByCode.get(s.addressCode);
+            const statusBadge = s.checkout
+              ? `<span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[11px] font-bold">Fora da Prateleira</span>`
+              : life.code === 'LIBERADO'
+              ? `<span class="px-2 py-0.5 rounded-full bg-red-100 text-doremus-red text-[11px] font-bold">Descartar (+90d)</span>`
+              : life.code === 'VENCIDO'
+              ? `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold">Vencido (${life.daysRemainingRetention}d)</span>`
+              : `<span class="px-2 py-0.5 rounded-full bg-doremus-light text-doremus-navy text-[11px] font-bold">Na Prateleira</span>`;
+
+            return `
+              <div class="p-4 rounded-xl border ${s.checkout ? 'border-purple-300 bg-purple-50/40' : 'border-slate-200 bg-white'} flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="openSlotModal('${escapeHtml(s.addressCode)}')" class="px-2.5 py-1 rounded-lg bg-doremus-navy text-white font-mono text-xs font-bold hover:bg-doremus-navyHover">
+                      ${escapeHtml(s.addressCode)}
+                    </button>
+                    <span class="font-mono text-xs font-bold text-slate-700">Cód: ${escapeHtml(s.barcode)}</span>
+                    <span class="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700">Lote: ${escapeHtml(s.batch)}</span>
+                    ${statusBadge}
+                  </div>
+                  <p class="text-sm font-bold text-slate-800">${escapeHtml(s.productName)}</p>
+                  <p class="text-xs text-slate-500">
+                    ${slot ? escapeHtml(slot.columnLabel) : ''} • Validade: <strong class="font-mono text-slate-700">${formatDateBR(s.expDate)}</strong>
+                  </p>
+                  ${s.checkout ? `
+                    <p class="text-xs text-purple-900 bg-purple-100/70 px-2.5 py-1 rounded-lg inline-block">
+                      Retirado por <strong>${escapeHtml(s.checkout.person)}</strong> em ${formatDateBR(s.checkout.date)} às ${escapeHtml(s.checkout.time)} ${s.checkout.reason ? `(${escapeHtml(s.checkout.reason)})` : ''}
+                    </p>
+                  ` : ''}
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  ${s.checkout ? `
+                    <button type="button" onclick="returnCheckedOutSample('${escapeHtml(s.id)}')" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">
+                      Confirmar Devolução
+                    </button>
+                  ` : `
+                    <button type="button" onclick="openCheckoutModal('${escapeHtml(s.id)}')" class="px-3 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold">
+                      Retirar p/ Análise
+                    </button>
+                  `}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      const checkedOut = state.samples.filter(s => !!s.checkout);
+      if (outCount) outCount.textContent = checkedOut.length;
+
+      if (outBox) {
+        if (checkedOut.length === 0) {
+          outBox.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">Nenhuma contraprova retirada no momento. Todas estão nas prateleiras.</div>`;
+        } else {
+          outBox.innerHTML = checkedOut.map(s => `
+            <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="space-y-0.5">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-mono text-xs font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-900">${escapeHtml(s.addressCode)}</span>
+                  <span class="text-xs font-bold text-slate-800">${escapeHtml(s.barcode)} — ${escapeHtml(s.productName)}</span>
+                  <span class="font-mono text-xs text-slate-500">Lote ${escapeHtml(s.batch)}</span>
+                </div>
+                <p class="text-xs text-purple-900">
+                  Com <strong>${escapeHtml(s.checkout.person)}</strong> desde <strong>${formatDateBR(s.checkout.date)} às ${escapeHtml(s.checkout.time)}</strong>
+                  ${s.checkout.reason ? ` — ${escapeHtml(s.checkout.reason)}` : ''}
+                </p>
+              </div>
+              <button type="button" onclick="returnCheckedOutSample('${escapeHtml(s.id)}')" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0">
+                Registrar Devolução
+              </button>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    function openCheckoutModal(sampleId) {
+      const smp = state.samples.find(s => s.id === sampleId);
+      if (!smp) return;
+      document.getElementById('checkoutSampleId').value = smp.id;
+      document.getElementById('checkoutSampleInfoBox').innerHTML = `
+        <strong>${escapeHtml(smp.barcode)} — ${escapeHtml(smp.productName)}</strong><br/>
+        Endereço: <span class="font-mono font-bold text-doremus-navy">${escapeHtml(smp.addressCode)}</span> • Lote: <span class="font-mono">${escapeHtml(smp.batch)}</span>
+      `;
+      document.getElementById('checkoutPersonName').value = '';
+      document.getElementById('checkoutReason').value = '';
+      document.getElementById('checkoutDate').value = getTodayISO();
+      document.getElementById('checkoutTime').value = getCurrentTimeHHMM();
+
+      const modal = document.getElementById('checkoutSampleModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.getElementById('checkoutPersonName').focus();
+    }
+
+    function closeCheckoutModal() {
+      const modal = document.getElementById('checkoutSampleModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function confirmCheckoutSample(event) {
+      event.preventDefault();
+      const id = document.getElementById('checkoutSampleId').value;
+      const person = document.getElementById('checkoutPersonName').value.trim();
+      const reason = document.getElementById('checkoutReason').value.trim();
+      const date = document.getElementById('checkoutDate').value || getTodayISO();
+      const time = document.getElementById('checkoutTime').value || getCurrentTimeHHMM();
+
+      const smp = state.samples.find(s => s.id === id);
+      if (!smp || !person) return;
+
+      smp.checkout = { person, reason, date, time };
+      saveState();
+      closeCheckoutModal();
+      closeSlotModal();
+      refreshAllViews();
+      showToast(`Retirada registrada para ${person} (${smp.addressCode}).`, 'info');
+    }
+
+    function returnCheckedOutSample(sampleId) {
+      const smp = state.samples.find(s => s.id === sampleId);
+      if (!smp) return;
+      const person = smp.checkout ? smp.checkout.person : '';
+      smp.checkout = null;
+      saveState();
+      closeSlotModal();
+      refreshAllViews();
+      showToast(`Amostra devolvida à prateleira ${smp.addressCode}${person ? ` por ${person}` : ''}!`, 'success');
+    }
+
+    // =========================================================================
+    // TELA 3: MAPA DE PRATELEIRAS (ESTANTES VISUAIS + LISTAS SUSPENSAS)
+    // =========================================================================
+    function setFloor(areaKey) {
+      ui.currentFloor = areaKey;
+      const buttons = {
+        CENTRO: document.getElementById('btnFloorCentro'),
+        CANTO_ESQ: document.getElementById('btnFloorCantoEsq'),
+        CANTO_DIR: document.getElementById('btnFloorCantoDir')
+      };
+      Object.entries(buttons).forEach(([key, btn]) => {
+        if (!btn) return;
+        if (key === areaKey) {
+          btn.className = 'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition bg-doremus-navy text-white';
+        } else {
+          btn.className = 'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900';
+        }
+      });
+      renderFloorMap();
+    }
+
+    function setMapFilter(filterCode) {
+      ui.currentMapFilter = filterCode;
+      document.querySelectorAll('.map-flt').forEach(btn => btn.classList.remove('ring-2', 'ring-doremus-navy'));
+      const active = document.getElementById(`flt-${filterCode}`);
+      if (active) active.classList.add('ring-2', 'ring-doremus-navy');
+      renderFloorMap();
+    }
+
+    function onMapGroupSelectChange(value) {
+      ui.selectedGroupByFloor[ui.currentFloor] = value;
+      renderFloorMap();
+    }
+
+    function onMapRackSelectChange(groupKey, value) {
+      ui.selectedRackByGroup[groupKey] = value;
+      renderFloorMap();
+    }
+
+    function renderFloorMap() {
+      const container = document.getElementById('sectorsMapContainer');
+      if (!container) return;
+
+      const byAddress = getSamplesByAddressMap();
+      const searchQ = (document.getElementById('mapSearchInput')?.value || '').trim().toLowerCase();
+      const areaSlots = cachedSlots.filter(s => s.area === ui.currentFloor);
+
+      if (areaSlots.length === 0) {
+        container.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-500">Nenhuma prateleira configurada nesta área.</div>`;
+        return;
+      }
+
+      // Agrupa por Fileira/Grupo (ex: Fileira 1..12, Fileira 13, Canto Esquerdo, Canto Direito)
+      const groupsMap = new Map();
+      areaSlots.forEach(slot => {
+        if (!groupsMap.has(slot.groupKey)) {
+          groupsMap.set(slot.groupKey, {
+            key: slot.groupKey,
+            label: slot.groupLabel,
+            slots: []
+          });
+        }
+        groupsMap.get(slot.groupKey).slots.push(slot);
+      });
+
+      const groups = Array.from(groupsMap.values());
+      let activeGroupKey = ui.selectedGroupByFloor[ui.currentFloor];
+      if (!activeGroupKey || !groupsMap.has(activeGroupKey)) {
+        activeGroupKey = groups[0].key;
+        ui.selectedGroupByFloor[ui.currentFloor] = activeGroupKey;
+      }
+
+      const activeGroup = groupsMap.get(activeGroupKey);
+
+      // Agrupa as prateleiras do grupo selecionado por Estante
+      const racksMap = new Map();
+      activeGroup.slots.forEach(slot => {
+        if (!racksMap.has(slot.rackNumber)) {
+          racksMap.set(slot.rackNumber, {
+            rackNumber: slot.rackNumber,
+            rackLabel: slot.rackLabel,
+            shelves: []
+          });
+        }
+        racksMap.get(slot.rackNumber).shelves.push(slot);
+      });
+      const racks = Array.from(racksMap.values()).sort((a, b) => a.rackNumber - b.rackNumber);
+
+      let selectedRack = ui.selectedRackByGroup[activeGroupKey] || 'ALL';
+      if (selectedRack !== 'ALL' && !racksMap.has(Number(selectedRack))) {
+        selectedRack = 'ALL';
+        ui.selectedRackByGroup[activeGroupKey] = 'ALL';
+      }
+
+      // Opções da lista suspensa de Fileiras
+      const groupOptionsHtml = groups.map(g => {
+        const occ = g.slots.filter(s => (byAddress.get(s.code) || []).length > 0).length;
+        return `<option value="${escapeHtml(g.key)}" ${g.key === activeGroupKey ? 'selected' : ''}>${escapeHtml(g.label)} — ${occ}/${g.slots.length} ocupadas</option>`;
+      }).join('');
+
+      // Opções da lista suspensa de Estantes
+      const rackOptionsHtml = [
+        `<option value="ALL" ${selectedRack === 'ALL' ? 'selected' : ''}>Todas as estantes (${racks.length})</option>`,
+        ...racks.map(r => {
+          const occ = r.shelves.filter(s => (byAddress.get(s.code) || []).length > 0).length;
+          return `<option value="${r.rackNumber}" ${String(r.rackNumber) === String(selectedRack) ? 'selected' : ''}>${escapeHtml(r.rackLabel)} (${occ}/${r.shelves.length} prat. ocupadas)</option>`;
+        })
+      ].join('');
+
+      // Filtra as estantes visíveis
+      const visibleRacks = racks.filter(r => {
+        if (selectedRack !== 'ALL' && String(r.rackNumber) !== String(selectedRack)) return false;
+
+        // Se houver filtro de status ou busca, só mostra estantes que tenham ao menos 1 prateleira correspondente
+        if (ui.currentMapFilter === 'ALL' && !searchQ) return true;
+
+        return r.shelves.some(slot => {
+          const items = byAddress.get(slot.code) || [];
+          const summary = evaluateShelfSummaryStatus(items);
+          const matchFilter =
+            ui.currentMapFilter === 'ALL' ||
+            (ui.currentMapFilter === 'RETIRADO' ? summary.hasCheckout : summary.code === ui.currentMapFilter);
+          if (!matchFilter) return false;
+          if (!searchQ) return true;
+          if (slot.code.toLowerCase().includes(searchQ)) return true;
+          return items.some(it =>
+            it.barcode.toLowerCase().includes(searchQ) ||
+            it.productName.toLowerCase().includes(searchQ) ||
+            it.batch.toLowerCase().includes(searchQ)
+          );
+        });
+      });
+
+      const racksGridHtml = visibleRacks.length === 0
+        ? `<div class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center text-xs sm:text-sm text-slate-500">Nenhuma estante encontrada com este filtro nesta fileira.</div>`
+        : `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            ${visibleRacks.map(r => {
+              // Ordena prateleiras de cima para baixo (P5 -> P1) como estante física real
+              const sortedShelves = [...r.shelves].sort((a, b) => b.shelfLevel - a.shelfLevel);
+              const shelvesHtml = sortedShelves.map(slot => {
+                const items = byAddress.get(slot.code) || [];
+                const summary = evaluateShelfSummaryStatus(items);
+
+                let styleCls = 'bg-slate-50 border-slate-200 text-slate-500 hover:border-doremus-navy/40';
+                let badgeText = 'Livre';
+                let badgeCls = 'text-slate-400';
+
+                if (summary.hasCheckout) {
+                  styleCls = 'bg-purple-50 border-purple-300 text-purple-950 hover:border-purple-500';
+                  badgeText = `${items.length} prod. • Retirado`;
+                  badgeCls = 'text-purple-700 font-bold';
+                } else if (summary.code === 'LIBERADO') {
+                  styleCls = 'bg-red-50 border-red-300 text-red-950 hover:border-doremus-red';
+                  badgeText = `${items.length} prod. • Descartar`;
+                  badgeCls = 'text-doremus-red font-bold';
+                } else if (summary.code === 'VENCIDO') {
+                  styleCls = 'bg-amber-100/90 border-amber-400 text-amber-950 hover:border-amber-600';
+                  badgeText = `${items.length} prod. • Vencido`;
+                  badgeCls = 'text-amber-900 font-bold';
+                } else if (summary.code === 'ATIVO') {
+                  styleCls = 'bg-doremus-light border-doremus-navy/30 text-doremus-navy hover:border-doremus-navy';
+                  badgeText = `${items.length} ${items.length === 1 ? 'produto' : 'produtos'}`;
+                  badgeCls = 'text-doremus-navy font-bold';
+                }
+
+                const previewLine = items.length > 0
+                  ? `${escapeHtml(items[0].barcode)} • ${escapeHtml(items[0].productName)}${items.length > 1 ? ` (+${items.length - 1})` : ''}`
+                  : 'Clique para guardar produto';
+
+                return `
+                  <button type="button" onclick="openSlotModal('${escapeHtml(slot.code)}')" class="slot-card w-full text-left px-2.5 py-2 rounded-xl border ${styleCls} flex flex-col gap-0.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="font-mono text-[11px] font-extrabold">P${slot.shelfLevel} <span class="font-normal opacity-75">(${escapeHtml(slot.code)})</span></span>
+                      <span class="text-[10px] ${badgeCls} shrink-0">${badgeText}</span>
+                    </div>
+                    <div class="text-[11px] truncate opacity-90">${previewLine}</div>
+                  </button>
+                `;
+              }).join('');
+
+              return `
+                <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm flex flex-col gap-2">
+                  <div class="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                    <span class="text-xs font-extrabold text-doremus-navy">${escapeHtml(r.rackLabel)}</span>
+                    <span class="text-[10px] font-semibold text-slate-400">${r.shelves.length} prateleiras</span>
+                  </div>
+                  <div class="space-y-1.5">${shelvesHtml}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>`;
+
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1">
+            <div class="flex-1 min-w-[210px]">
+              <label class="block text-[11px] font-bold text-slate-500 mb-1">Fileira / Setor</label>
+              <select onchange="onMapGroupSelectChange(this.value)" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs sm:text-sm font-bold text-doremus-navy focus:outline-none focus:border-doremus-navy">
+                ${groupOptionsHtml}
+              </select>
+            </div>
+            <div class="flex-1 min-w-[200px]">
+              <label class="block text-[11px] font-bold text-slate-500 mb-1">Estante</label>
+              <select onchange="onMapRackSelectChange('${escapeHtml(activeGroupKey)}', this.value)" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs sm:text-sm font-bold text-doremus-navy focus:outline-none focus:border-doremus-navy">
+                ${rackOptionsHtml}
+              </select>
+            </div>
+          </div>
+          <div class="text-xs text-slate-500 md:text-right">
+            Exibindo <strong class="text-doremus-navy">${visibleRacks.length}</strong> de ${racks.length} estantes<br/>
+            <span class="text-[11px]">Cada prateleira aceita vários produtos</span>
+          </div>
+        </div>
+        ${racksGridHtml}
+      `;
+    }
+
+    // =========================================================================
+    // MODAL DE DETALHE DA PRATELEIRA (MÚLTIPLOS PRODUTOS)
+    // =========================================================================
+    function openSlotModal(addressCode) {
+      const slot = cachedSlotsByCode.get(addressCode);
+      if (!slot) return;
+      const items = state.samples.filter(s => s.addressCode === addressCode);
+
+      document.getElementById('slotModalFloor').textContent = `${getAreaLabel(slot.area)} • ${slot.columnLabel}`;
+      document.getElementById('slotModalCode').textContent = slot.code;
+
+      const body = document.getElementById('slotModalBody');
+      if (items.length === 0) {
+        body.innerHTML = `
+          <div class="p-5 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-3">
+            <p class="text-sm font-semibold text-slate-700">Esta prateleira está vazia.</p>
+            <button type="button" onclick="prefillIntakeWithAddress('${escapeHtml(slot.code)}')" class="px-4 py-2.5 rounded-xl bg-doremus-navy hover:bg-doremus-navyHover text-white text-xs font-bold">
+              + Guardar Produto nesta Prateleira
+            </button>
+          </div>
+        `;
+      } else {
+        const listHtml = items.map(s => {
+          const life = evaluateSampleLifecycle(s);
+          return `
+            <div class="p-3.5 rounded-xl border ${s.checkout ? 'border-purple-300 bg-purple-50/50' : 'border-slate-200 bg-slate-50/70'} space-y-2">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="font-mono text-xs font-bold text-doremus-navy">${escapeHtml(s.barcode)}</span>
+                  <h4 class="font-bold text-slate-800 text-sm">${escapeHtml(s.productName)}</h4>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  life.code === 'LIBERADO' ? 'bg-red-100 text-doremus-red' :
+                  life.code === 'VENCIDO' ? 'bg-amber-200 text-amber-950' :
+                  'bg-doremus-light text-doremus-navy'
+                }">${escapeHtml(life.label)}</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-[11px] text-slate-600">
+                <div>Lote:<br/><strong class="font-mono text-slate-800">${escapeHtml(s.batch)}</strong></div>
+                <div>Validade:<br/><strong class="font-mono text-slate-800">${formatDateBR(s.expDate)}</strong></div>
+                <div>Descarte (+90d):<br/><strong class="font-mono text-slate-800">${formatDateBR(life.discardLimitDate)}</strong></div>
+              </div>
+              ${s.checkout ? `
+                <div class="text-xs text-purple-900 bg-purple-100 px-2.5 py-1.5 rounded-lg">
+                  <strong>Fora da prateleira:</strong> com ${escapeHtml(s.checkout.person)} desde ${formatDateBR(s.checkout.date)} às ${escapeHtml(s.checkout.time)}
+                </div>
+              ` : ''}
+              <div class="flex flex-wrap gap-2 pt-1">
+                ${s.checkout ? `
+                  <button type="button" onclick="returnCheckedOutSample('${escapeHtml(s.id)}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">
+                    Confirmar Devolução
+                  </button>
+                ` : `
+                  <button type="button" onclick="openCheckoutModal('${escapeHtml(s.id)}')" class="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold">
+                    Retirar p/ Análise
+                  </button>
+                `}
+                ${life.code === 'LIBERADO' ? `
+                  <button type="button" onclick="openSingleDiscardModal('${escapeHtml(s.id)}')" class="px-3 py-1.5 rounded-lg bg-doremus-red hover:bg-doremus-redHover text-white text-xs font-bold">
+                    Descartar (+90d)
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        body.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-600">${items.length} ${items.length === 1 ? 'produto guardado' : 'produtos guardados'} nesta prateleira</span>
+            <button type="button" onclick="prefillIntakeWithAddress('${escapeHtml(slot.code)}')" class="px-3 py-1.5 rounded-xl bg-doremus-navy hover:bg-doremus-navyHover text-white text-xs font-bold">
+              + Guardar Outro Produto
+            </button>
+          </div>
+          <div class="space-y-2.5">${listHtml}</div>
+        `;
+      }
+
+      const modal = document.getElementById('slotModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeSlotModal() {
+      const modal = document.getElementById('slotModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function prefillIntakeWithAddress(addressCode) {
+      const slot = cachedSlotsByCode.get(addressCode);
+      if (!slot) return;
+      closeSlotModal();
+      const sectorSel = document.getElementById('inSectorId');
+      if (sectorSel) sectorSel.value = slot.sectorId;
+      ui.manualSlotOverride = slot.code;
+      switchTab('recebimento');
+      updateAutoAddressPreview();
+      showToast(`Endereço ${slot.code} selecionado para nova entrada.`, 'info');
+    }
+
+    // =========================================================================
+    // MODAL: ITENS EM BLOQUEIO
+    // =========================================================================
+    function openBlockedModal() {
+      const body = document.getElementById('blockedModalBody');
+      if (!state.blockedSamples.length) {
+        body.innerHTML = `<div class="p-5 text-center text-slate-500">Nenhuma amostra em bloqueio no momento.</div>`;
+      } else {
+        body.innerHTML = state.blockedSamples.map(b => `
+          <div class="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <strong class="text-slate-800">${escapeHtml(b.barcode)} — ${escapeHtml(b.productName)}</strong>
+              <span class="font-mono text-xs px-2 py-0.5 rounded bg-white border border-amber-200">Lote ${escapeHtml(b.batch)}</span>
+            </div>
+            <p class="text-xs text-slate-600">Validade: <strong class="font-mono">${formatDateBR(b.expDate)}</strong></p>
+            <div class="flex gap-2">
+              <button type="button" onclick="releaseBlockedToShelf('${escapeHtml(b.id)}')" class="px-3 py-1.5 rounded-lg bg-doremus-navy text-white text-xs font-bold">
+                Liberar p/ Prateleira
+              </button>
+              <button type="button" onclick="discardBlockedSample('${escapeHtml(b.id)}')" class="px-3 py-1.5 rounded-lg border border-red-300 text-doremus-red text-xs font-bold">
+                Reprovar / Descartar
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+      const modal = document.getElementById('blockedModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeBlockedModal() {
+      const modal = document.getElementById('blockedModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function releaseBlockedToShelf(blockedId) {
+      const idx = state.blockedSamples.findIndex(b => b.id === blockedId);
+      if (idx === -1) return;
+      const item = state.blockedSamples[idx];
+      const sectorId = inferSectorIdFromLine('', item.lineLabel, item.productName);
+      const slot = getSuggestedSlotForSector(sectorId);
+      if (!slot) return;
+
+      state.blockedSamples.splice(idx, 1);
+      state.samples.unshift({
+        id: 'smp-' + Date.now(),
+        addressCode: slot.code,
+        sectorId: slot.sectorId,
+        barcode: item.barcode,
+        productName: item.productName,
+        lineLabel: item.lineLabel,
+        batch: item.batch,
+        prodDate: item.prodDate,
+        expDate: item.expDate,
+        createdAt: new Date().toISOString(),
+        checkout: null
+      });
+      saveState();
+      openBlockedModal();
+      refreshAllViews();
+      showToast(`Amostra liberada e endereçada em ${slot.code}.`, 'success');
+    }
+
+    function discardBlockedSample(blockedId) {
+      state.blockedSamples = state.blockedSamples.filter(b => b.id !== blockedId);
+      saveState();
+      openBlockedModal();
+      refreshAllViews();
+      showToast('Amostra bloqueada removida.', 'info');
+    }
+
+    // =========================================================================
+    // TELA 4: JUNÇÃO DE VALIDADES
+    // =========================================================================
+    function renderValidityView() {
+      const container = document.getElementById('validityGroupsContainer');
+      const mode = document.getElementById('groupModeSelect')?.value || 'DATE';
+      if (!container) return;
+
+      if (state.samples.length === 0) {
+        container.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-500">Nenhuma amostra armazenada.</div>`;
+        return;
+      }
+
+      const groups = new Map();
+      const sorted = [...state.samples].sort((a, b) => (a.expDate || '').localeCompare(b.expDate || ''));
+
+      sorted.forEach(s => {
+        let key = s.expDate || 'Sem Data';
+        let label = formatDateBR(s.expDate);
+        if (mode === 'MONTH' && s.expDate) {
+          const p = s.expDate.split('-');
+          key = `${p[0]}-${p[1]}`;
+          label = `${p[1]}/${p[0]}`;
+        } else if (mode === 'SECTOR') {
+          const slot = cachedSlotsByCode.get(s.addressCode);
+          key = slot ? slot.sectorId : 'OUTROS';
+          label = slot ? slot.sectorName : 'Outros';
+        }
+        if (!groups.has(key)) groups.set(key, { label, items: [] });
+        groups.get(key).items.push(s);
+      });
+
+      container.innerHTML = Array.from(groups.values()).map(g => `
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-doremus-navy">${escapeHtml(g.label)}</h3>
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-doremus-light text-doremus-navy">${g.items.length} ${g.items.length === 1 ? 'item' : 'itens'}</span>
+          </div>
+          <div class="divide-y divide-slate-100">
+            ${g.items.map(s => {
+              const life = evaluateSampleLifecycle(s);
+              return `
+                <div class="px-5 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div class="flex items-center gap-2.5">
+                    <button type="button" onclick="openSlotModal('${escapeHtml(s.addressCode)}')" class="font-mono font-bold px-2 py-1 rounded bg-doremus-navy text-white">${escapeHtml(s.addressCode)}</button>
+                    <div>
+                      <p class="font-bold text-slate-800">${escapeHtml(s.barcode)} — ${escapeHtml(s.productName)}</p>
+                      <p class="text-slate-500">Lote <span class="font-mono">${escapeHtml(s.batch)}</span> • Val: <span class="font-mono">${formatDateBR(s.expDate)}</span></p>
+                    </div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                    life.code === 'LIBERADO' ? 'bg-red-100 text-doremus-red' :
+                    life.code === 'VENCIDO' ? 'bg-amber-100 text-amber-900' :
+                    'bg-doremus-light text-doremus-navy'
+                  }">${escapeHtml(life.label)}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // =========================================================================
+    // TELA 5: DESCARTE UNIFICADO (+90 DIAS)
+    // =========================================================================
+    function renderDiscardView() {
+      const readyBody = document.getElementById('readyDiscardTableBody');
+      const lockedBody = document.getElementById('lockedRetentionTableBody');
+      const readyItems = [];
+      const lockedItems = [];
+
+      state.samples.forEach(s => {
+        const life = evaluateSampleLifecycle(s);
+        if (life.code === 'LIBERADO') readyItems.push({ sample: s, life });
+        else if (life.code === 'VENCIDO') lockedItems.push({ sample: s, life });
+      });
+
+      // Limpa IDs que não existem mais
+      const readySet = new Set(readyItems.map(x => x.sample.id));
+      ui.selectedDiscardIds.forEach(id => { if (!readySet.has(id)) ui.selectedDiscardIds.delete(id); });
+
+      if (readyBody) {
+        if (!readyItems.length) {
+          readyBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">Nenhuma amostra liberada para descarte hoje.</td></tr>`;
+        } else {
+          readyBody.innerHTML = readyItems.map(({ sample, life }) => `
+            <tr class="hover:bg-red-50/40">
+              <td class="py-3 px-4">
+                <input type="checkbox" ${ui.selectedDiscardIds.has(sample.id) ? 'checked' : ''} onchange="toggleSingleDiscardSelect('${escapeHtml(sample.id)}', this.checked)" class="rounded cursor-pointer" />
+              </td>
+              <td class="py-3 px-4 font-mono font-bold text-doremus-navy">${escapeHtml(sample.addressCode)}</td>
+              <td class="py-3 px-4">
+                <div class="font-bold text-slate-800">${escapeHtml(sample.barcode)} — ${escapeHtml(sample.productName)}</div>
+                <div class="text-xs text-slate-500 font-mono">Lote: ${escapeHtml(sample.batch)}</div>
+              </td>
+              <td class="py-3 px-4 font-mono">${formatDateBR(sample.expDate)}</td>
+              <td class="py-3 px-4 font-mono text-doremus-red font-bold">${formatDateBR(life.discardLimitDate)}</td>
+              <td class="py-3 px-4 text-right">
+                <button type="button" onclick="openSingleDiscardModal('${escapeHtml(sample.id)}')" class="px-3 py-1.5 rounded-lg bg-doremus-red hover:bg-doremus-redHover text-white text-xs font-bold">
+                  Descartar
+                </button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      if (lockedBody) {
+        if (!lockedItems.length) {
+          lockedBody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Nenhuma amostra vencida em quarentena no momento.</td></tr>`;
+        } else {
+          lockedBody.innerHTML = lockedItems.map(({ sample, life }) => `
+            <tr>
+              <td class="py-2.5 px-4 font-mono font-bold text-amber-900">${escapeHtml(sample.addressCode)}</td>
+              <td class="py-2.5 px-4">
+                <span class="font-bold text-slate-800">${escapeHtml(sample.barcode)} — ${escapeHtml(sample.productName)}</span>
+                <span class="text-xs text-slate-500 font-mono ml-2">(${escapeHtml(sample.batch)})</span>
+              </td>
+              <td class="py-2.5 px-4 font-mono">${formatDateBR(sample.expDate)}</td>
+              <td class="py-2.5 px-4 font-mono font-bold text-amber-800">${formatDateBR(life.discardLimitDate)}</td>
+              <td class="py-2.5 px-4 text-right font-bold text-amber-900">${life.daysRemainingRetention} dias</td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      const selCountEl = document.getElementById('selectedDiscardCount');
+      const btnBatch = document.getElementById('btnBatchDiscard');
+      if (selCountEl) selCountEl.textContent = ui.selectedDiscardIds.size;
+      if (btnBatch) btnBatch.disabled = ui.selectedDiscardIds.size === 0;
+    }
+
+    function toggleSelectAllDiscard(checked) {
+      ui.selectedDiscardIds.clear();
+      if (checked) {
+        state.samples.forEach(s => {
+          if (evaluateSampleLifecycle(s).code === 'LIBERADO') ui.selectedDiscardIds.add(s.id);
+        });
+      }
+      renderDiscardView();
+    }
+
+    function toggleSingleDiscardSelect(id, checked) {
+      if (checked) ui.selectedDiscardIds.add(id);
+      else ui.selectedDiscardIds.delete(id);
+      renderDiscardView();
+    }
+
+    function openSingleDiscardModal(id) {
+      ui.pendingDiscardIds = [id];
+      const smp = state.samples.find(s => s.id === id);
+      if (!smp) return;
+      document.getElementById('confirmDiscardSummary').innerHTML = `
+        Confirma o descarte definitivo de <strong>${escapeHtml(smp.barcode)} — ${escapeHtml(smp.productName)}</strong> (Lote <span class="font-mono">${escapeHtml(smp.batch)}</span>) da prateleira <strong class="font-mono">${escapeHtml(smp.addressCode)}</strong>?
+      `;
+      const modal = document.getElementById('confirmDiscardModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function openBatchDiscardModal() {
+      if (ui.selectedDiscardIds.size === 0) return;
+      ui.pendingDiscardIds = Array.from(ui.selectedDiscardIds);
+      document.getElementById('confirmDiscardSummary').innerHTML = `
+        Confirma o descarte unificado de <strong>${ui.pendingDiscardIds.length} amostras</strong> que já completaram os 90 dias pós-vencimento?
+      `;
+      const modal = document.getElementById('confirmDiscardModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeConfirmDiscardModal() {
+      const modal = document.getElementById('confirmDiscardModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      ui.pendingDiscardIds = [];
+    }
+
+    function executeConfirmedDiscard() {
+      if (!ui.pendingDiscardIds.length) return;
+      const idSet = new Set(ui.pendingDiscardIds);
+      const removed = state.samples.filter(s => idSet.has(s.id));
+      state.samples = state.samples.filter(s => !idSet.has(s.id));
+      removed.forEach(r => {
+        state.discardHistory.unshift({ ...r, discardedAt: new Date().toISOString() });
+        ui.selectedDiscardIds.delete(r.id);
+      });
+      saveState();
+      closeConfirmDiscardModal();
+      closeSlotModal();
+      refreshAllViews();
+      showToast(`${removed.length} ${removed.length === 1 ? 'amostra descartada' : 'amostras descartadas'} com sucesso!`, 'success');
+    }
+
+    // =========================================================================
+    // TELA 6: CONFIGURAÇÃO DE PRATELEIRAS, LINHAS E GOOGLE APPS SCRIPT
+    // =========================================================================
+    function renderConfigView() {
+      const cfgId = document.getElementById('cfgSheetId');
+      const cfgOrd = document.getElementById('cfgTabOrdens');
+      const cfgBrw = document.getElementById('cfgTabBrowse');
+      const cfgWh = document.getElementById('cfgWebhookUrl');
+
+      if (cfgId) cfgId.value = state.config.sheetId || DEFAULT_SHEET_ID;
+      if (cfgOrd) cfgOrd.value = state.config.tabOrdens || DEFAULT_TAB_ORDENS;
+      if (cfgBrw) cfgBrw.value = state.config.tabBrowse || DEFAULT_TAB_BROWSE;
+      if (cfgWh) cfgWh.value = state.config.webhookUrl || '';
+      updateSheetLinkHref();
+
+      renderShelfConfigList();
+      renderLineMappingPanel();
+      populateAppsScriptSnippet();
+    }
+
+    function renderShelfConfigList() {
+      const list = document.getElementById('shelfConfigList');
+      if (!list) return;
+
+      list.innerHTML = state.sectors.map((sec, idx) => {
+        const total = (parseInt(sec.rows, 10) || 1) * (parseInt(sec.racksPerRow, 10) || 1) * (parseInt(sec.shelvesPerRack, 10) || 5);
+        return `
+          <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/70 grid grid-cols-1 sm:grid-cols-12 gap-2 items-end text-xs">
+            <div class="sm:col-span-3">
+              <label class="block text-[10px] font-bold text-slate-500">Nome do Setor</label>
+              <input data-sec-idx="${idx}" data-sec-field="name" type="text" value="${escapeHtml(sec.name)}" class="sec-input w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[10px] font-bold text-slate-500">Área</label>
+              <select data-sec-idx="${idx}" data-sec-field="area" class="sec-input w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white">
+                <option value="CENTRO" ${sec.area === 'CENTRO' ? 'selected' : ''}>Centro</option>
+                <option value="CANTO_ESQ" ${sec.area === 'CANTO_ESQ' ? 'selected' : ''}>Canto Esq.</option>
+                <option value="CANTO_DIR" ${sec.area === 'CANTO_DIR' ? 'selected' : ''}>Canto Dir.</option>
+              </select>
+            </div>
+            <div class="sm:col-span-1">
+              <label class="block text-[10px] font-bold text-slate-500">Sigla</label>
+              <input data-sec-idx="${idx}" data-sec-field="prefix" type="text" value="${escapeHtml(sec.prefix)}" class="sec-input w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-mono uppercase" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[10px] font-bold text-slate-500">Fileiras</label>
+              <input data-sec-idx="${idx}" data-sec-field="rows" type="number" min="1" value="${sec.rows}" class="sec-input w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-mono" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[10px] font-bold text-slate-500">Estantes</label>
+              <input data-sec-idx="${idx}" data-sec-field="racksPerRow" type="number" min="1" value="${sec.racksPerRow}" class="sec-input w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-mono" />
+            </div>
+            <div class="sm:col-span-1">
+              <label class="block text-[10px] font-bold text-slate-500">Prat.</label>
+              <input data-sec-idx="${idx}" data-sec-field="shelvesPerRack" type="number" min="1" value="${sec.shelvesPerRack}" class="sec-input w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-mono" />
+            </div>
+            <div class="sm:col-span-1 flex items-center justify-between sm:justify-end gap-1">
+              <span class="font-mono font-bold text-doremus-navy text-[11px]">${total}</span>
+              ${state.sectors.length > 1 ? `<button type="button" onclick="removeSectorRow(${idx})" class="p-1 text-slate-400 hover:text-doremus-red" title="Remover">✕</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addNewSectorRow() {
+      const n = state.sectors.length + 1;
+      state.sectors.push({
+        id: 'SEC' + n,
+        name: 'Novo Setor ' + n,
+        prefix: 'S' + n,
+        area: 'CENTRO',
+        rows: 1,
+        racksPerRow: 10,
+        shelvesPerRack: 5
+      });
+      renderShelfConfigList();
+    }
+
+    function removeSectorRow(idx) {
+      state.sectors.splice(idx, 1);
+      renderShelfConfigList();
+    }
+
+    function applyShelfConfiguration() {
+      document.querySelectorAll('.sec-input').forEach(inp => {
+        const idx = Number(inp.dataset.secIdx);
+        const field = inp.dataset.secField;
+        if (!state.sectors[idx]) return;
+        if (field === 'rows' || field === 'racksPerRow' || field === 'shelvesPerRack') {
+          state.sectors[idx][field] = Math.max(1, parseInt(inp.value, 10) || 1);
+        } else if (field === 'prefix') {
+          state.sectors[idx][field] = inp.value.trim().toUpperCase() || state.sectors[idx].id;
+        } else {
+          state.sectors[idx][field] = inp.value.trim();
+        }
+      });
+
+      rebuildSlotsIndex();
+      saveState();
+      refreshAllViews();
+      showToast(`Estrutura atualizada: ${cachedSlots.length} prateleiras mapeadas!`, 'success');
+    }
+
+    function renderLineMappingPanel() {
+      const panel = document.getElementById('lineMappingPanel');
+      const list = document.getElementById('lineMappingList');
+      if (!panel || !list) return;
+
+      if (catalog.allLines.size === 0) {
+        panel.classList.add('hidden');
+        return;
+      }
+
+      panel.classList.remove('hidden');
+      const entries = Array.from(catalog.allLines.entries());
+      list.innerHTML = entries.map(([lineKey, lineLabel]) => {
+        const currentSec = state.lineSectorMap[lineKey] || inferSectorIdFromLine(lineKey, lineLabel, '');
+        return `
+          <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2 text-xs">
+            <span class="font-semibold text-slate-700 truncate" title="${escapeHtml(lineLabel)}">${escapeHtml(lineLabel)}</span>
+            <select onchange="updateLineSectorMapping('${escapeHtml(lineKey)}', this.value)" class="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-doremus-navy">
+              ${state.sectors.map(s => `<option value="${escapeHtml(s.id)}" ${s.id === currentSec ? 'selected' : ''}>${escapeHtml(s.prefix)} - ${escapeHtml(s.name)}</option>`).join('')}
+            </select>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateLineSectorMapping(lineKey, sectorId) {
+      state.lineSectorMap[lineKey] = sectorId;
+      saveState();
+      showToast('Vínculo de linha atualizado!', 'success');
+    }
+
+    function printShelfLabels() {
+      const printArea = document.getElementById('printArea');
+      if (!printArea) return;
+      const sampleLabels = cachedSlots.slice(0, 60);
+      printArea.innerHTML = `
+        <div class="grid grid-cols-3 gap-3">
+          ${sampleLabels.map(s => `
+            <div class="border-2 border-slate-800 rounded-xl p-3 text-center space-y-1">
+              <img src="https://i.postimg.cc/7bXdy0xK/as-02.png" alt="Doremus" class="h-6 mx-auto object-contain" />
+              <div class="font-mono text-lg font-extrabold text-slate-900">${escapeHtml(s.code)}</div>
+              <div class="text-[10px] text-slate-600">${escapeHtml(s.columnLabel)}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      printArea.classList.remove('hidden');
+      window.print();
+      printArea.classList.add('hidden');
+    }
+
+    function populateAppsScriptSnippet() {
+      const area = document.getElementById('appsScriptCodeArea');
+      if (!area) return;
+      area.value = [
+        '// Cole este código SOMENTE no arquivo Código.gs do Google Apps Script',
+        '// E crie um arquivo HTML chamado Index (com I maiúsculo) com o código da tela',
+        'function doGet(e) {',
+        '  return HtmlService.createHtmlOutputFromFile("Index")',
+        '    .setTitle("Doremus — Controle de Contraprova")',
+        '    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)',
+        '    .addMetaTag("viewport", "width=device-width, initial-scale=1");',
+        '}',
+        '',
+        'function getCatalogData(tabOrdens, tabBrowse) {',
+        '  var ss = SpreadsheetApp.getActiveSpreadsheet();',
+        '  var shOrd = ss.getSheetByName(tabOrdens);',
+        '  var shBrw = ss.getSheetByName(tabBrowse);',
+        '  return {',
+        '    ordens: shOrd ? shOrd.getDataRange().getDisplayValues() : [],',
+        '    browse: shBrw ? shBrw.getDataRange().getDisplayValues() : []',
+        '  };',
+        '}',
+        '',
+        'function saveStockData(payload) {',
+        '  var ss = SpreadsheetApp.getActiveSpreadsheet();',
+        '  var sh = ss.getSheetByName("Contraprova_Estoque") || ss.insertSheet("Contraprova_Estoque");',
+        '  var rows = (payload && payload.samples) ? payload.samples : [];',
+        '  sh.clearContents();',
+        '  sh.appendRow(["Endereco", "Codigo", "Produto", "Lote", "Fabricacao", "Validade", "Status", "RetiradoPor", "DataRetirada"]);',
+        '  rows.forEach(function(r) {',
+        '    sh.appendRow([r.addressCode, r.barcode, r.productName, r.batch, r.prodDate, r.expDate, r.status, r.checkoutPerson, r.checkoutDateTime]);',
+        '  });',
+        '  return { ok: true, saved: rows.length };',
+        '}',
+        '',
+        'function doPost(e) {',
+        '  var payload = JSON.parse((e && e.postData && e.postData.contents) ? e.postData.contents : "{}");',
+        '  var res = saveStockData(payload);',
+        '  return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);',
+        '}'
+      ].join('\n');
+    }
+
+    function copyAppsScriptCode() {
+      const area = document.getElementById('appsScriptCodeArea');
+      if (!area) return;
+      area.select();
+      document.execCommand('copy');
+      showToast('Código.gs copiado! Cole no arquivo Código.gs do Apps Script.', 'success');
+    }
+
+    async function pushAllToGoogleSheet() {
+      const url = (document.getElementById('cfgWebhookUrl')?.value || '').trim();
+      state.config.webhookUrl = url;
+      saveState();
+
+      const payload = {
+        samples: state.samples.map(s => ({
+          addressCode: s.addressCode,
+          barcode: s.barcode,
+          productName: s.productName,
+          batch: s.batch,
+          prodDate: s.prodDate,
+          expDate: s.expDate,
+          status: evaluateSampleLifecycle(s).label,
+          checkoutPerson: s.checkout ? s.checkout.person : '',
+          checkoutDateTime: s.checkout ? `${s.checkout.date} ${s.checkout.time}` : ''
+        }))
+      };
+
+      // Se estiver rodando dentro do Apps Script, grava direto na planilha ativa
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            showToast(`Salvo na aba Contraprova_Estoque (${res.saved} itens)!`, 'success');
+          })
+          .withFailureHandler(function () {
+            showToast('Erro ao gravar na planilha pelo Apps Script.', 'error');
+          })
+          .saveStockData(payload);
+        return;
+      }
+
+      if (!url) {
+        showToast('Informe a URL do App da Web (Apps Script) para gravar na planilha.', 'warning');
+        return;
+      }
+
+      try {
+        await fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        showToast('Dados enviados para a aba Contraprova_Estoque da planilha!', 'success');
+      } catch (err) {
+        showToast('Erro ao enviar dados para o Apps Script.', 'error');
+      }
+    }
+
+    function exportFullCsv() {
+      const headers = ['Endereco', 'Codigo', 'Produto', 'Lote', 'Fabricacao', 'Validade', 'Status', 'RetiradoPor'];
+      const lines = [headers.join(';')];
+      state.samples.forEach(s => {
+        const life = evaluateSampleLifecycle(s);
+        lines.push([
+          s.addressCode,
+          s.barcode,
+          `"${(s.productName || '').replace(/"/g, '""')}"`,
+          s.batch,
+          formatDateBR(s.prodDate),
+          formatDateBR(s.expDate),
+          life.label,
+          s.checkout ? `"${s.checkout.person} (${formatDateBR(s.checkout.date)} ${s.checkout.time})"` : ''
+        ].join(';'));
+      });
+      const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `contraprova_doremus_${getTodayISO()}.csv`;
+      a.click();
+    }
+
+    function clearDemoSamples() {
+      state.samples = [];
+      state.blockedSamples = [];
+      saveState();
+      refreshAllViews();
+      showToast('Amostras de exemplo removidas. Estoque zerado.', 'info');
+    }
+
+    // Fecha caixas de sugestão ao clicar fora
+    document.addEventListener('click', function (e) {
+      const codeBox = document.getElementById('codeSuggestionsBox');
+      const batchBox = document.getElementById('batchSuggestionsBox');
+      if (codeBox && !e.target.closest('#inBarcode') && !e.target.closest('#codeSuggestionsBox')) {
+        codeBox.classList.add('hidden');
+      }
+      if (batchBox && !e.target.closest('#inBatch') && !e.target.closest('#batchSuggestionsBox')) {
+        batchBox.classList.add('hidden');
+      }
+    });
+
+    // =========================================================================
+    // INICIALIZAÇÃO DO SISTEMA
+    // =========================================================================
+    // INICIALIZAÇÃO DO SISTEMA (COMPATÍVEL COM GOOGLE APPS SCRIPT)
+    // =========================================================================
+    function initApp() {
+      if (window.__doremusAppInitialized) return;
+      window.__doremusAppInitialized = true;
+      try {
+        loadState();
+        resetIntakeForm();
+        refreshAllViews();
+        switchTab('recebimento');
+        loadSpreadsheetCatalog(false);
+      } catch (err) {
+        console.error('Erro ao inicializar o sistema:', err);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
+  </script>
+</body>
+</html>
